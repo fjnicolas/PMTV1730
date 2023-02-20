@@ -22,7 +22,7 @@ Soft tools for PMT V1730 analysis
 
 ## Running analyzer instructions
 
-Purpose: get readable waveforms
-For ana we setup this environment: source ana_launchdaq.sh
-We run this fhicl-file: https://github.com/SBNSoftware/sbndaq-artdaq/blob/develop/sbndaq-artdaq/ArtModules/Common/dump_CAENV1730.fcl
-Correr en /sbnd/fnicolas (“HOME” area)
+* Purpose: get readable waveforms
+* For ana we setup this environment: source ana_launchdaq.sh
+* We run this fhicl-file: https://github.com/SBNSoftware/sbndaq-artdaq/blob/develop/sbndaq-artdaq/ArtModules/Common/dump_CAENV1730.fcl
+* Correr en /sbnd/fnicolas (“HOME” area)
