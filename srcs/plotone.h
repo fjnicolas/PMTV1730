@@ -3,6 +3,7 @@
 // Wed Oct  7 11:42:29 2020 by ROOT version 6.22/02
 // from TTree events/waveform tree
 // found on file: datafiles/caen1.root
+// Macro from Erin/Michelle 02/20/23
 //////////////////////////////////////////////////////////
 
 #ifndef plotone_h
