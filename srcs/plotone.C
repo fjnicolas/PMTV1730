@@ -30,12 +30,13 @@ void plotone::Loop(int ichoice)
 //    fChain->GetEntry(jentry);       //read all branches
 //by  b_branchname->GetEntry(ientry); //read only this branch
    if (fChain == 0) return;
+    Long64_t jentry = ichoice;
 
-   TCanvas *c1=new TCanvas("c1","c1",1500,900);
+   TCanvas *c1=new TCanvas("c1",Form("Event%d.pdf",(int)jentry),1500,900);
    c1->Divide(4,4); // divides the canvas into two rows and three columns
 
 
-   int nsamples = 2000;//15000;
+   //int nsamples = 5500;//15000;
    /* if (fRun>2350 ) nsamples=15000; */
    std::cout << " nsamples per waveform setting " << nsamples << " " << fRun << std::endl;
 
@@ -51,7 +52,7 @@ void plotone::Loop(int ichoice)
 
     Long64_t nbytes = 0, nb = 0;
    /* for (Long64_t jentry=0; jentry<nentries;jentry++) { */
-   Long64_t jentry = ichoice;
+
    Long64_t ientry = LoadTree(jentry);
    if (ientry < 0) return;
    nb = fChain->GetEntry(jentry);   nbytes += nb;
@@ -124,8 +125,10 @@ void plotone::Loop(int ichoice)
    c1->cd(7);  wf[14]->Draw();
    c1->cd(8);  wf[15]->Draw();*/
 
-      //      c1->Print(Form("../../6Desktop/PlotsSBND/Event%02d.png",(int)jentry));
-      //c1->Print(Form("Event%d.png",(int)jentry));
+   c1->cd();c1->Update(); c1->WaitPrimitive();
+
+    //c1->Print(Form("../../6Desktop/PlotsSBND/Event%02d.png",(int)jentry));
+    c1->Print(Form("Event%d.pdf",(int)jentry));
 
 }
 
@@ -160,7 +163,7 @@ void plotone::Average()
    c1->Divide(1,2); // divides the canvas into two rows and three columns
 
 
-   int nsamples = 15000;
+   //int nsamples = 15000;
    /* if (fRun>2350 ) nsamples=15000; */
    std::cout << " nsamples per waveform setting " << nsamples << " " << fRun << std::endl;
 
