@@ -6,7 +6,7 @@ Soft tools for PMT V1730 analysis
 ## Running DAQ instructions
 * ssh sbnd@sbnd-gateway01.fnal.gov
 * ssh sbnd@sbnd-evb02.fnal.gov (open two terminals)
-* Setup script (pmt_launch.sh in home area)
+* Setup script (`pmtv1730_launchdaq.sh` in home area)
 * In the first terminal open the monitoring. Command is just DAQInterface 
   * Have a look to the file https://github.com/SBNSoftware/sbndaq/blob/develop/sbn-nd/DAQInterface/boot.txt
   * We have to set it up the eve machine we use
