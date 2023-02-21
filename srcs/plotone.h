@@ -13,6 +13,8 @@
 #include <TChain.h>
 #include <TFile.h>
 
+#define nsamples 5100
+
 // Header file for the classes stored in the TTree if any.
 #include "vector"
 
@@ -21,6 +23,9 @@ public :
    TTree          *fChain;   //!pointer to the plotonelyzed TTree or TChain
    TTree          *fChain2;
    Int_t           fCurrent; //!current Tree number in a TChain
+   std::string fFileName;
+   std::string fDirName;
+
 
 // Fixed size dimensions of array or collections stored in the TTree if any.
 
@@ -44,7 +49,7 @@ public :
    TBranch *b_caen_ev;
    TBranch *b_caenv_ev_tts;
 
-   plotone(TTree *tree=0, TTree *tree2=0);
+   plotone(std::string file_name, std::string dir_name, TTree *tree=0, TTree *tree2=0);
    virtual ~plotone();
    virtual Int_t    Cut(Long64_t entry);
    virtual Int_t    GetEntry(Long64_t entry);
@@ -59,16 +64,27 @@ public :
 #endif
 
 #ifdef plotone_cxx
-plotone::plotone(TTree *tree, TTree *tree2) : fChain(0)
+plotone::plotone(std::string file_name, std::string dir_name, TTree *tree, TTree *tree2) : 
+   fChain(0),
+   fFileName(file_name),
+   fDirName(dir_name)
 {
 // if parameter tree is not specified (or zero), connect the file
 // used to generate this class and read the Tree.
+   //std::string file_name = "processed_data_result.root";
+   //std::string dir_name = "processed_data_result.root;caenv1730dump";
    if (tree == 0) {
-      TFile *f = (TFile*)gROOT->GetListOfFiles()->FindObject("eventana_simdata_run4385.root");//caendump_run4484.root");//caenv1730dump_hist_run1291.root");
+      //TFile *f = (TFile*)gROOT->GetListOfFiles()->FindObject("processed_data_result.root");//caendump_run4484.root");//caenv1730dump_hist_run1291.root");
+      //TFile *f = new TFile("processed_data_result_subrun2_pulsech15.root", "READ");
+      TFile *f = new TFile(fFileName.c_str(), "READ");
       if (!f || !f->IsOpen()) {
-         f = new TFile("eventana_simdata_run4385.root");//caendump_run4484.root");//caenv1730dump_hist_run1291.root");
+         std::cout << "FFile " << file_name << " not found!" << std::endl;
+         return;
       }
-      TDirectory * dir = (TDirectory*)f->Get("eventana_simdata_run4385.root:/dumpall");//caendump_run4484.root:/caenv1730dump");
+
+      
+      //TDirectory * dir = (TDirectory*)f->Get("caenv1730dump");//caendump_run4484.root:/caenv1730dump");
+      TDirectory * dir = (TDirectory*)f->Get(fDirName.c_str());//caendump_run4484.root:/caenv1730dump");
       dir->GetObject("events",tree);
       dir->GetObject("nt_header",tree2);
 
@@ -169,3 +185,9 @@ Int_t plotone::Cut(Long64_t entry)
    return 1;
 }
 #endif // #ifdef plotone_cxx
+
+
+
+
+//f = ROOT.TFile.Open(filepath)
+//tree =  f.Get("flashrecoeff/FlashRecoEff")
