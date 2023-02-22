@@ -3,6 +3,78 @@
 #include <TH2.h>
 #include <TStyle.h>
 #include <TCanvas.h>
+#include "TVirtualFFT.h"
+
+void plotone::LoopFFT(int ichoice, int chchoice)
+{
+
+  if (fChain == 0) return;
+  Long64_t jentry = ichoice;
+
+  TCanvas *c1=new TCanvas("c1",Form("EventFFT%d.pdf",(int)jentry),1500,900);
+  c1->Divide(4,4); // divides the canvas into two rows and three columns
+  
+  std::cout << " nsamples per waveform setting " << nsamples << " " << fRun << std::endl;
+
+  TH1F *wf[16];
+  for (int i=0;i<16;++i) {
+    TString title = Form("ch%02d",i);
+    wf[i] = new TH1F(title,title,nsamples,0,nsamples);
+    wf[i]->GetXaxis()->SetTitle("time (1 tick = 2 ns)");
+  }
+
+  Long64_t nbytes = 0, nb = 0;
+
+  Long64_t ientry = LoadTree(jentry);
+  if (ientry < 0) return;
+  nb = fChain->GetEntry(jentry);   nbytes += nb;
+ 
+  // make pictures of waveforms
+  for (auto ich = 0;ich<fWvfmsVec->size();++ich) {
+    vector<unsigned short> thiswf = fWvfmsVec->at(ich);
+    if (jentry==0)	{ if (nsamples!=thiswf.size()) std::cout << "Number of samples set at " << nsamples <<
+              " and waveforms are " << thiswf.size() << std::endl;}
+    for (auto itick=0;itick<thiswf.size();++itick) {
+      wf[ich]->SetBinContent(itick+1,thiswf[itick]);
+    }
+  }
+
+  /*int wvsize=fWvfmsVec->at(chchoice).size();
+  int n=wvsize+1;
+  Double_t *in = new Double_t[2*((n+1)/2+1)];
+  for(int i=0; i<wvsize; i++ ){
+    in[i] = fWvfmsVec->at(chchoice).at(i);
+    std::cout << in[i] << std::endl;
+  }
+
+
+
+  wvsize=2*wvsize+1;
+  TVirtualFFT *fft_own = TVirtualFFT::FFT(1, &wvsize, "R2C ES K");
+  fft_own->SetPoints(in);
+  fft_own->Transform();
+  //Copy all the output points:
+  fft_own->GetPoints(in);
+
+  TH1 *hr = 0;
+  hr = TH1::TransformHisto(fft_own, hr, "RE");*/
+
+  c1->cd(1);
+  wf[0]->Draw();
+
+  // TH1F *wfFFT[16]; for (auto ich = 0;ich<wf->size();++ich) {}
+  
+  c1->cd(2);
+  TH1 *hm =0;
+  TVirtualFFT::SetTransform(0);
+  hm = wf[0]->FFT(hm, "MAG");
+  hm->SetTitle("Magnitude of the 1st transform");
+  hm->Draw();
+ 
+  c1->cd();c1->Update(); c1->WaitPrimitive();
+  //c1->Print(Form("Event%d.pdf",(int)jentry));
+
+}
 
 void plotone::Loop(int ichoice)
 {
