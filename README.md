@@ -58,3 +58,9 @@ Soft tools for PMT V1730 analysis
 * For ana we setup this environment: source ana_launchdaq.sh
 * We run this fhicl-file: https://github.com/SBNSoftware/sbndaq-artdaq/blob/develop/sbndaq-artdaq/ArtModules/Common/dump_CAENV1730.fcl
 * Correr en /sbnd/fnicolas (“HOME” area)
+
+Notes on long data takings:
+Cannot disconnect DAQInterface. Recommend running in tmux or screen so it's running in the background. If we close the monitor window, there's no way to get it back (not critical).
+ There's an option in the EventBuilder to prescale the number of recorded events.
+
+
