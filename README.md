@@ -19,6 +19,38 @@ Soft tools for PMT V1730 analysis
 * Other file we looked at: https://github.com/SBNSoftware/sbndaq/blob/develop/sbn-nd/DAQInterface/known_boardreaders_list
 * Always run in the DAQInterfacee (BOTH MONITROING AND ./RUN)
 
+# Files we needed to modify to run PMT DAQ
+* Using `sbndaq v01_05_00`
+* sbndaq/sbn-nd/DAQInterface/boot.txt
+  * ~~PMT host: sbnd-evb04-daq~~
+  * PMT host: sbnd-evb02-daq
+  * ~EventBuilder host: sbnd-evb04-daq~
+  * ~EventBuilder label: EventBuilder4~
+  * EventBuilder host: sbnd-evb02-daq
+  * EventBuilder label: EventBuilder2
+  * ~Dispatcher host: sbnd-evb04-daq~
+  * Dispatcher host: sbnd-evb02-daq
+  
+  * This file contains the info of the event builder machine (evb) we are use to make our run. We need to make sure anyone else is running on the same machine. There is a [spreadsheet](https://docs.google.com/spreadsheets/d/1xJb7Dge_ktMcXOaUkF0sAGDepLXewSUJwcNiCsHDAOA/edit#gid=0) for that. Modify the event builder machine we are using. Eventually we will want to change the partition in the evb machine we are using (`Subsystem id: 1`)
+
+* sbndaq/sbn-nd/DAQInterface/configs/standard/EventBuilder2.fcl
+  * ~outputs.normalOutput.fileName: "/scratch/data/data_evb02_run%R_%#_%to.root"~
+  * outputs.normalOutput.fileName: "/scratch/pmtv1730_fnicolas/noiseonly/data_evb02_run%R_%#_%to.root"
+  
+  * There are 4 `EventBuildeer` fhicls, one per evb server. We need to modify the fhicl corresponding to the server we'll use. Change the output path (where the eveents will be recorded). Make sure to create the directory in the server before running.
+  
+  
+
+*sbndaq/sbn-nd/DAQInterface/configs/standard/pmtx01.fcl
+  * Added daq.fragment_receiver.fragment_id: 15
+  
+  * This is the fhicl that will call the DAQ generator/producer. It's what we call from the `run` script
+
+*sbndaq/sbn-nd/DAQInterface/run
+  * ~-setdaqcomps.sh pmtx03 crt01PULL spectdc ptb01PULL~
+  * setdaqcomps.sh pmtx01
+  
+  * Scrit to start the DAQ. We specify the fhicl with our DAQ configuration. In our case is `pmtx01.fcl`.
 
 ## Running analyzer instructions
 
