@@ -25,31 +25,34 @@ parser.add_argument("-n", "--NEv", help="Max Events", type=int, default=2)
 parserargs = parser.parse_args()
 fBaseline = 0
 
+fX_min = 0
+fX_max = 5000
+
 print("FFFF", parserargs.Filepath, parserargs.FFT)
 
 ##########################################
 file = ROOT.TFile.Open(parserargs.Filepath)
 tree =  file.Get("caenv1730dump/events")
 print ("Tree Entries: ", tree.GetEntries())
-NTreeEntries=tree.GetEntries(); NTreeEntries=75
 ##########################################
 
 evCounter=0
-for tree_entry in range( NTreeEntries ):
+for tree_entry in range( tree.GetEntries() ):
     tree.GetEntry(tree_entry)
     evCounter+=1
-    if(evCounter>parserargs.NEv): continue
+    if(evCounter>=parserargs.NEv): continue
     #Event IDs
     eventID= tree.fEvent
     runID= tree.fRun
+    print(evCounter, "Event ID: ", eventID)
     #Waveforms
     #fTicksVec=tree.fTicksVec
     fWvfmsVec=tree.fWvfmsVec
 
     fig, axs = plt.subplots(4, 4, num="Event ID: "+str(eventID))
-    fig.subplots_adjust(left=0.05, bottom=0.06, right=0.99, top=0.95, wspace=0.3, hspace=0.45)
+    fig.subplots_adjust(left=0.06, bottom=0.06, right=0.99, top=0.95, wspace=0.3, hspace=0.45)
     
-    print("Event ID: ", eventID)
+    
     for ch, wf in enumerate(fWvfmsVec):
         print(ch, len(wf))
         wf=np.array(wf)-fBaseline
@@ -58,12 +61,14 @@ for tree_entry in range( NTreeEntries ):
             wf_fft = fft(np.array(wf))
             axs[ch//4, ch%4].plot(np.abs(wf_fft))
             axs[ch//4, ch%4].set_yscale("log")
+            
     
         else:
             ch_stddev = np.std(wf)
             labName = "StdDev="+"{:.1f}".format(ch_stddev)+" ADC"
             axs[ch//4, ch%4].plot(wf, label=labName)
             axs[ch//4, ch%4].legend()
+            axs[ch//4, ch%4].set_xlim(fX_min, fX_max)
 
         axs[ch//4, ch%4].set_title("Ch="+str(ch))
         axs[ch//4, ch%4].set_xlabel("Time Tick [2 ns]")

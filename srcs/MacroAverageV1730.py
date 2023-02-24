@@ -29,7 +29,6 @@ fBaseline = 0
 file = ROOT.TFile.Open(parserargs.Filepath)
 tree =  file.Get("caenv1730dump/events")
 print ("Tree Entries: ", tree.GetEntries())
-NTreeEntries=tree.GetEntries(); NTreeEntries=75
 ##########################################
 
 eventCounter = 0
@@ -44,17 +43,18 @@ for ch in range(fNChannels):
     WvRMSChDict[ch]=[]
 
 
-for tree_entry in range( NTreeEntries ):
+for tree_entry in range( tree.GetEntries() ):
     tree.GetEntry(tree_entry)
+    eventCounter+=1
     #Event IDs
     eventID= tree.fEvent
     runID= tree.fRun
+    print(eventCounter, "Event ID: ", eventID)
     #Waveforms
     #fTicksVec=tree.fTicksVec
     fWvfmsVec=tree.fWvfmsVec
 
 
-    print("Event ID: ", eventID)
     for ch, wf in enumerate(fWvfmsVec):
         wf=np.array(wf)
 
@@ -65,7 +65,7 @@ for tree_entry in range( NTreeEntries ):
         WvRMSChDict[ch].append(ch_stddev)
 
     EventID_V.append(eventID)
-    eventCounter+=1
+   
 
 
         
@@ -74,7 +74,7 @@ for tree_entry in range( NTreeEntries ):
 fig, axs = plt.subplots(2, 1)
 fig.subplots_adjust(left=0.05, bottom=0.06, right=0.99, top=0.95, wspace=0.3, hspace=0.45)
 
-print("NEvents", eventCounter)
+print("Total processed events", eventCounter)
 
 for ch in range(fNChannels):
     axs[0].scatter(EventID_V, WvMeanChDict[ch], label="Ch"+str(ch), marker='o', s=3.)
