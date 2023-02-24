@@ -56,11 +56,16 @@ Soft tools for PMT V1730 analysis
 
 * Purpose: get readable waveforms
 * For ana we setup this environment: source ana_launchdaq.sh
-* We run this fhicl-file: https://github.com/SBNSoftware/sbndaq-artdaq/blob/develop/sbndaq-artdaq/ArtModules/Common/dump_CAENV1730.fcl
+* We run this [fhicl-file](https://github.com/SBNSoftware/sbndaq-artdaq/blob/develop/sbndaq-artdaq/ArtModules/Common/dump_CAENV1730.fcl)
 * Correr en /sbnd/fnicolas (“HOME” area)
 
 Notes on long data takings:
 Cannot disconnect DAQInterface. Recommend running in tmux or screen so it's running in the background. If we close the monitor window, there's no way to get it back (not critical).
  There's an option in the EventBuilder to prescale the number of recorded events.
 
+
+## Running CAEN wavedump
+
+- Instructions: [Running wavedump](https://github.com/SBNSoftware/SBNSoftware.github.io/blob/master/running_wvdump.md)
+- Useeful commands: `caen` will show info about the connected boards
 
