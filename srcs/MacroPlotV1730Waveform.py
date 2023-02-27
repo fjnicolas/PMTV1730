@@ -6,6 +6,12 @@ import argparse
 import ROOT
 import pandas as pd
 
+# run as
+# py MacroPlotV1730Waveform.py -s data/processed_data_result.root -o 1 -n 10
+# if using ROOT output from CaenV1730Dump or
+# py MacroPlotV1730Waveform.py -s data/PlotData.txt -o 2 -n 10
+# if using CAEN wavedump txt output
+
 params = {'legend.fontsize': 'small',
           'figure.figsize': (12, 8),
          'axes.labelsize': 'medium',
