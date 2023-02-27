@@ -67,5 +67,11 @@ Cannot disconnect DAQInterface. Recommend running in tmux or screen so it's runn
 ## Running CAEN wavedump
 
 - Instructions: [Running wavedump](https://github.com/SBNSoftware/SBNSoftware.github.io/blob/master/running_wvdump.md)
-- Useeful commands: `caen` will show info about the connected boards
+- Useful commands: `caen` will show info about the connected boards
+- In the V1730: make sure both RUN (gren) and TRG (green flashing) are turned one when running
+- We are using this file: `/home/nfs/sbnd/wavedump-3.9.0-trig/src/w1_testFeb23.txt`
+- Important parameters:
+ - `OPEN PCI 1 0 0`: first number must match the link we are using (in our case 0)
+ - If using an external trigger, make sure we set up `EXTERNAL_TRIGGER  ACQUISITION_AND_TRGOUT` in the conf file
+
 
