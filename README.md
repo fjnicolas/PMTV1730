@@ -9,9 +9,8 @@ Soft tools for PMT V1730 analysis
 * Setup script (`pmtv1730_launchdaq.sh` in home area)
 * In the first terminal open the monitoring. Command is just DAQInterface 
   * Have a look to the file https://github.com/SBNSoftware/sbndaq/blob/develop/sbn-nd/DAQInterface/boot.txt
-  * We have to set it up the eve machine we use
-  * We are currently using evb02 and partition 1
-  * Message people in the Slack channel #sbnd_daq about what server and partition we are using
+  * Set the `evb` server and the partition in which we will run tha DAQ (we are currently using evb02 and p1)
+  * Message people in the Slack channel #sbnd_daq about what server and partition we are using (also update this [spreadsheet](https://docs.google.com/spreadsheets/d/1xJb7Dge_ktMcXOaUkF0sAGDepLXewSUJwcNiCsHDAOA/edit#gid=0))
 * Then we modified configs/standard/EventBuilder2.fcl:
    * These are the hicls to run the evnetbuilder. Tells what evbn server we are. 
    * We modified the path where the output goes (somewhere in /scratch/fnicolas/myfancydirectory)
