@@ -17,7 +17,7 @@ Soft tools for PMT V1730 analysis
    * We modified the path where the output goes (somewhere in /scratch/fnicolas/myfancydirectory)
 * Then we have a look to these fhicls: pmtx01.fcl and  pmt_standard.fcl  (apparently we didn’t modify anything?)
 * Other file we looked at: https://github.com/SBNSoftware/sbndaq/blob/develop/sbn-nd/DAQInterface/known_boardreaders_list
-* Always run in the DAQInterfacee (BOTH MONITROING AND ./RUN)
+* Always run in the DAQInterface directory (for both monitoring and run)
 
 # Files we needed to modify to run PMT DAQ
 * Using `sbndaq v01_05_00`
