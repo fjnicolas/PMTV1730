@@ -31,10 +31,11 @@ fBaseline = 0
 
 fX_min = 0
 fX_max = 5000
-
 fWfSize = 5000
-
-
+fSamplingTime=2 #in ns
+fDeltaF=1./(fWfSize*fSamplingTime)
+fFMax=1./(fSamplingTime*2)
+fBinsFrquencies=np.arange(0, fFMax, fDeltaF)
 
 ##########################################
 def PlotBoardChannels(dat, eventID, fFFT=False):
@@ -51,12 +52,15 @@ def PlotBoardChannels(dat, eventID, fFFT=False):
         print('Plotting channel : ', ch, " Length : ", len(wf))
 
         if(fFFT==True):
-            print("Making FFT")
-            wf_fft = fft(np.array(wf))
-            axs[chIx//4, chIx%4].plot(np.abs(wf_fft))
-            axs[chIx//4, chIx%4].set_yscale("log")
-            
-
+            #subtract baseline
+            wf=wf-np.mean(wf)
+            wf_fft = fft(wf)
+            axs[chIx//4, chIx%4].plot(fBinsFrquencies, np.abs(wf_fft)[0:int(fWfSize/2)])
+            #axs[chIx//4, chIx%4].set_xlim(0, fWfSize/2+1)
+            #axs[chIx//4, chIx%4].set_yscale("log")
+            axs[chIx//4, chIx%4].set_xlabel('Frequency [GHz]');
+            axs[chIx//4, chIx%4].set_ylabel("Power (AU)")
+        
         else:
             chIx_stddev = np.std(wf)
             labName = "StdDev="+"{:.1f}".format(chIx_stddev)+" ADC"
@@ -64,9 +68,10 @@ def PlotBoardChannels(dat, eventID, fFFT=False):
             axs[chIx//4, chIx%4].legend()
             axs[chIx//4, chIx%4].set_xlim(fX_min, fX_max)
 
-        axs[chIx//4, chIx%4].set_title("Ch="+str(chIx))
-        axs[chIx//4, chIx%4].set_xlabel("Time Tick [2 ns]")
-        axs[chIx//4, chIx%4].set_ylabel("[ADC]")
+            axs[chIx//4, chIx%4].set_xlabel("Time Tick [2 ns]")
+            axs[chIx//4, chIx%4].set_ylabel("[ADC]")
+        
+            axs[chIx//4, chIx%4].set_title("Ch="+str(chIx))
         axs[chIx//4, chIx%4].grid()
 
 
