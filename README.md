@@ -1,7 +1,8 @@
 # PMTV1730
 Soft tools for PMT V1730 analysis
 
-
+## Make new insstallation
+https://github.com/SBNSoftware/SBNSoftware.github.io/blob/master/sbn_online_wiki/Installation.md
 
 ## Running DAQ instructions
 * ssh sbnd@sbnd-gateway01.fnal.gov
