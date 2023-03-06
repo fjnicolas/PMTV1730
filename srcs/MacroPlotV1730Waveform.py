@@ -30,7 +30,7 @@ parserargs = parser.parse_args()
 fBaseline = 0
 
 fX_min = 0
-fX_max = 5000
+fX_max = 250
 fWfSize = 5000
 fSamplingTime=2 #in ns
 fDeltaF=1./(fWfSize*fSamplingTime)
