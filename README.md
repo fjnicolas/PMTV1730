@@ -75,3 +75,7 @@ Cannot disconnect DAQInterface. Recommend running in tmux or screen so it's runn
  - If using an external trigger, make sure we set up `EXTERNAL_TRIGGER  ACQUISITION_AND_TRGOUT` in the conf file
 
 
+## LeCrow fan-in/fan-out specifications
+- https://prep.fnal.gov/catalog/hardware_info/lecroy/nim/429a.html
+- https://prep.fnal.gov/catalog/hardware_info/lecroy/nim/428f.html
+
