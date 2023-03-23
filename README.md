@@ -103,9 +103,12 @@ Cannot disconnect DAQInterface. Recommend running in tmux or screen so it's runn
 
 
 # Board we are using
-- Connected to sbnd-pds03 trhough link0
-- Lnk Model
+- Connected to sbnd-pds03 trhough link
+
+```
+Lnk Model
 0   VX1730SB Serial 164
       04.23 - Build 4B06
       00.02 - Build 4922 202
       AMode:0 CLK:1  PLL:1  RUN:0  DRDY:0  FULL:0  RDY:1
+      
