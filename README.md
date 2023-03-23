@@ -79,3 +79,13 @@ Cannot disconnect DAQInterface. Recommend running in tmux or screen so it's runn
 - https://prep.fnal.gov/catalog/hardware_info/lecroy/nim/429a.html
 - https://prep.fnal.gov/catalog/hardware_info/lecroy/nim/428f.html
 
+## Instructions to reset the crate
+- Make sure no one is running
+- Log in sbnd-gateway02.fnal.gov
+- telnet sbnd-vme01 8100 (change the name of the crate accordingly)
+-  You should see a message like:
+   *  `Connected to sbnd-vme01.fnal.gov (10.226.35.41).`
+   *  `Escape character is '^]'.`
+- The type the command `$CMD:SET,CH:8,PAR:SYSR`
+  * More info about this command in: http://pen.phys.virginia.edu/daq/vme/vme8100_usersmanual.pdf
+  * Section 8.4 (page 41)
