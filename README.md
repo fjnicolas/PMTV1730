@@ -89,3 +89,23 @@ Cannot disconnect DAQInterface. Recommend running in tmux or screen so it's runn
 - The type the command `$CMD:SET,CH:8,PAR:SYSR`
   * More info about this command in: http://pen.phys.virginia.edu/daq/vme/vme8100_usersmanual.pdf
   * Section 8.4 (page 41)
+
+
+## Notes about signals
+- Convention about signals:
+<img width="847" alt="Captura de pantalla 2023-03-23 a las 15 56 53" src="https://user-images.githubusercontent.com/66068208/227358526-c5c34dd2-b642-4fe4-8e37-c0b16f382e04.png">
+
+- V1730 Trigger signal: TTL signal (set to 3.3V)
+- Inout V1730 channels: better use NIM signals
+- Quad fanin-fanout: linear analagos, can use both
+- 429A Logic fan-in/out: only NIM signal
+- Pulse width reducer: only NIM
+
+
+# Board we are using
+- Connected to sbnd-pds03 trhough link0
+- Lnk Model
+0   VX1730SB Serial 164
+      04.23 - Build 4B06
+      00.02 - Build 4922 202
+      AMode:0 CLK:1  PLL:1  RUN:0  DRDY:0  FULL:0  RDY:1
