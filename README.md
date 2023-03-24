@@ -76,8 +76,11 @@ Cannot disconnect DAQInterface. Recommend running in tmux or screen so it's runn
 
 
 ## LeCrow fan-in/fan-out specifications
-- https://prep.fnal.gov/catalog/hardware_info/lecroy/nim/429a.html
-- https://prep.fnal.gov/catalog/hardware_info/lecroy/nim/428f.html
+- Fast logic module: https://prep.fnal.gov/catalog/hardware_info/lecroy/nim/429a.html
+- Quad linear fanin-fanout: https://prep.fnal.gov/catalog/hardware_info/lecroy/nim/428f.html
+- Octal discriminator: https://www.fnal.gov/projects/ckm/jlab/623b-spec.htm
+ * Manual: https://web.physics.ucsb.edu/~phys128/experiments/muonphysics/Instrument%20manuals/LeCroy%20623B%20data%20sheet.pdf
+- LeCroy 22 Dual Gate: https://groups.nscl.msu.edu/nscl_library/manuals/lecroy/222.pdf
 
 ## Instructions to reset the crate
 - Make sure no one is running
