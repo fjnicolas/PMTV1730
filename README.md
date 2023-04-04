@@ -114,4 +114,14 @@ Lnk Model
       04.23 - Build 4B06
       00.02 - Build 4922 202
       AMode:0 CLK:1  PLL:1  RUN:0  DRDY:0  FULL:0  RDY:1
+```
       
+      
+## Running DQM instructions
+- Critical: we need `artdaq v3_11_02_01` (and artdaq_utilities v1_07_02_01`):
+``setup artdaq v3_11_02_01 -q e20:s112:prof```
+- Need to install sbndqm and sbndaq-online (develop branches work)
+- In sbndaq-online add password (`sbndaq-online/redis-connect/RedisConnection.cc`):
+`fRedisPassword = pset.get<std::string>("password", "B4730D6D9606E3EB37048EB017D4C69EFB56243CCC408E3BEC3BFDEEDF792876");`
+- DQM tutorial: https://cdcvs.fnal.gov/redmine/projects/sbndqm/wiki/Sbndqm_Workshop_April_2023
+
