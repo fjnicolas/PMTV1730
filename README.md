@@ -111,6 +111,17 @@ Cannot disconnect DAQInterface. Recommend running in tmux or screen so it's runn
 - Pulse width reducer: only NIM
 
 
+## Change to external clock in the V1730
+
+- Ground yourself, unscrew board, take out the board, switch button (red) in the side of the board
+- Program: CAENUpgradeGUI (run in the sbnd-pds* server)
+- Select clock we want to configure. The live in Clock in etc/CAEN…: v1730S_vcxo500_ref50_pll_out62_5.rbf
+- Select board model: V1730S
+- Change type of link. We are using optical links (OPLINK)
+- Pay attention to the link number we want to upgrade
+- Upgrade, do not interrupt it, reboot
+
+
 # Board we are using
 - Connected to sbnd-pds03 trhough link
 
@@ -121,6 +132,10 @@ Lnk Model
       00.02 - Build 4922 202
       AMode:0 CLK:1  PLL:1  RUN:0  DRDY:0  FULL:0  RDY:1
 ```
+
+Legend:
+- CLK: if 1, means the board is expecting an external clock
+- PLL: if 1, the clock board is properly setup (either internal or external). Same applies here for the LED (should be green) in the board
       
       
 ## Running DQM instructions
