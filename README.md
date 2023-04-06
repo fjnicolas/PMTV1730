@@ -52,6 +52,11 @@ https://github.com/SBNSoftware/SBNSoftware.github.io/blob/master/sbn_online_wiki
   
   * Scrit to start the DAQ. We specify the fhicl with our DAQ configuration. In our case is `pmtx01.fcl`.
 
+
+## Board reader notes
+- Fhicl configuration parameters for the board reader: https://github.com/SBNSoftware/sbndaq-artdaq/blob/v1_06_00/sbndaq-artdaq/Generators/Common/CAENConfiguration.hh
+- To change pedestal (DC offsets): change pedestal, not basline parameters
+
 ## Running analyzer instructions
 
 * Purpose: get readable waveforms
