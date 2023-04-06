@@ -5,6 +5,8 @@ from scipy.fft import fft, ifft
 import argparse
 import ROOT
 import pandas as pd
+from PlotUtilsV1730 import *
+
 
 # run as
 # py MacroPlotV1730Waveform.py -s data/processed_data_result.root -o 1 -n 10
@@ -27,10 +29,9 @@ parser.add_argument("-fft", "--FFT", help="Plot FFT", type=int, default=0)
 parser.add_argument("-n", "--NEv", help="Max Events", type=int, default=1)
 parser.add_argument("-o", "--Option", help="Input option", type=int, default=1)
 parserargs = parser.parse_args()
-fBaseline = 0
 
 fX_min = 0
-fX_max = 250
+fX_max = 5000
 fWfSize = 5000
 fSamplingTime=2 #in ns
 fDeltaF=1./(fWfSize*fSamplingTime)
@@ -56,8 +57,7 @@ def PlotBoardChannels(dat, eventID, fFFT=False):
             wf=wf-np.mean(wf)
             wf_fft = fft(wf)
             axs[chIx//4, chIx%4].plot(fBinsFrquencies, np.abs(wf_fft)[0:int(fWfSize/2)])
-            #axs[chIx//4, chIx%4].set_xlim(0, fWfSize/2+1)
-            #axs[chIx//4, chIx%4].set_yscale("log")
+            axs[chIx//4, chIx%4].set_yscale("log")
             axs[chIx//4, chIx%4].set_xlabel('Frequency [GHz]');
             axs[chIx//4, chIx%4].set_ylabel("Power (AU)")
         

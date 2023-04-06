@@ -27,105 +27,48 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-s", "--Filepath", help="Input file name",  default="none")
 parser.add_argument("-o", "--Option", help="Input option", type=int, default=1)
 parser.add_argument("-n", "--NEv", help="Max Events", type=int, default=1e6)
+parser.add_argument("-tHandle", "--TimeHandle", help="Use time handle", type=int, default=0)
 parser.add_argument("-chSkip", "--ChSkip", type=int, action='append', help="Channels to skip", default=[])
 parserargs = parser.parse_args()
-fBaseline = 0
-fNChannels = 16
-fWfSize = 5000
+
+
+# compute pedestal in two zones
+fPreBins = [0, 800]
+fPostBins = [1500, -1]
+fSelectedBins=[0, 5000]
+fSelectedBins = fPostBins
 
 fChSkip = parserargs.ChSkip
 
 if(parserargs.Option == 1):
     EventID_V, WvMeanChDict, WvRMSChDict = ReadFromAnaROOT(parserargs.Filepath)
 elif(parserargs.Option == 2):
-    EventID_V, WvMeanChDict, WvRMSChDict = ReadFromROOT(parserargs.Filepath, fChSkip)
+    EventID_V, WvMeanChDict, WvRMSChDict = ReadFromROOT(parserargs.Filepath, fChSkip, waveformRange=fSelectedBins, maxEvents=parserargs.NEv)
 elif(parserargs.Option == 3):
     EventID_V, WvMeanChDict, WvRMSChDict = ReadFromTxt(parserargs.Filepath)
 
 
-fig, axs = plt.subplots(2, 1)
-fig.subplots_adjust(left=0.075, bottom=0.06, right=0.99, top=0.95, wspace=0.3, hspace=0.45)
 
-print("Total processed events", len(EventID_V))
+print("MAX", max(EventID_V), "MIN", min(EventID_V) )
+print(EventID_V)
 
-for ch in range(fNChannels):
-    if(ch in fChSkip): continue
-    #print(ch, len(WvMeanChDict[ch]), len(WvRMSChDict[ch]), len(EventID_V))
-    axs[0].scatter(EventID_V, WvMeanChDict[ch], label="Ch"+str(ch), marker='o', s=3.)
+
+
+if(parserargs.TimeHandle==1):
+    # run 03/23
+    #timeHandle = TimeXAxisHandle( datetime.datetime(2023, 3, 23, 19, 42, 0), 0.05)
+    # run 03/24
+    timeHandle = TimeXAxisHandle( datetime.datetime(2023, 3, 24, 16, 56, 0), 0.05)
+    # run 02/28
+    #timeHandle = TimeXAxisHandle( datetime.datetime(2023, 2, 28, 17, 18, 0), 0.04)
     
-axs[0].set_xlabel("event ID"); axs[0].set_ylabel("Pedestal mean [ADC]"); 
-axs[0].legend(loc='right')
-axs[0].grid()
-
-
-print(WvRMSChDict[0])
-for ch in range(fNChannels):
-    if(ch in fChSkip): continue
-    axs[1].scatter(EventID_V, WvRMSChDict[ch], label="Ch"+str(ch), marker='o', s=3.)
-axs[1].set_xlabel("event ID"); axs[1].set_ylabel("Pedestal RMS [ADC]"); 
-axs[1].legend(loc='right')
-axs[1].grid()
+    PlotAverageBaseline(EventID_V, WvMeanChDict, WvRMSChDict, timeAxisHandle=timeHandle)
+else:
+    PlotAverageBaseline(EventID_V, WvMeanChDict, WvRMSChDict)
 
 
 
-fig2, axs = plt.subplots(2, 3)
-fig2.subplots_adjust(left=0.075, bottom=0.06, right=0.99, top=0.95, wspace=0.3, hspace=0.45)
+PlotStatisticsBaseline(EventID_V, WvMeanChDict, WvRMSChDict)
 
-ChPed={}
-ChPedErr={}
-ChRMS={}
-ChRMSErr={}
-
-
-df = pd.DataFrame(columns=['Ch','ChPed','ChPedErr','ChRMS','ChRMSErr'], index=np.arange(0, fNChannels, 1))
-dfString = pd.DataFrame(columns=["Ch", "Ped", "RMS"], index=np.arange(0, fNChannels, 1))
-
-for ch in range(fNChannels):
-    if(ch in fChSkip): continue
-    ped_mean = np.mean(WvMeanChDict[ch])
-    ped_err = np.std(WvMeanChDict[ch])
-    rms_mean = np.mean(WvRMSChDict[ch])
-    rms_err = np.std(WvRMSChDict[ch])
-
-    df.loc[ch] = [ch,ped_mean, ped_err, rms_mean, rms_err]
-
-    dfString.loc[ch] = [
-        str(ch),
-        "{:.1f}".format(ped_mean)+r"$\pm$"+"{:.1f}".format(ped_err),
-        "{:.2f}".format(rms_mean)+r"$\pm$"+"{:.2f}".format(rms_err)
-    ]
-
-
-print(df)
-
-for ch in range(fNChannels):
-    if(ch in fChSkip): continue
-    axs[0][0].hist(WvMeanChDict[ch], label="Ch"+str(ch), histtype="step")
-axs[0][0].set_xlabel("Baseline mean"); axs[0][0].set_ylabel("# entries"); 
-axs[0][0].grid()
-axs[0][0].legend()
-
-binsRMS=np.arange(0, 5, 0.005)
-for ch in range(fNChannels):
-    if(ch in fChSkip): continue
-    axs[0][1].hist(WvRMSChDict[ch], bins=binsRMS, label="Ch"+str(ch), histtype="step")
-axs[0][1].set_xlabel("Baseline RMS"); axs[0][1].set_ylabel("# entries"); 
-axs[0][1].grid()
-axs[0][1].legend()
-
-
-axs[1][0].table(cellText=dfString.values, colLabels=dfString.columns, loc='center')
-axs[1][0].axis('off')
-
-axs[1][1].errorbar(df.Ch, df.ChRMS, df.ChRMSErr, ls='none', marker="o")
-axs[1][1].grid()
-axs[1][1].set_xlabel("Channel"); axs[1][1].set_ylabel("Pedestal RMS [ADC]"); 
-axs[1][1].set_xticks(np.arange(fNChannels))
-
-axs[1][2].errorbar(df.Ch, df.ChPed, df.ChPedErr, ls='none', marker="o")
-axs[1][2].grid()
-axs[1][2].set_xlabel("Channel"); axs[1][2].set_ylabel("Pedestal mean [ADC]");
-axs[1][2].set_xticks(np.arange(fNChannels)) 
 
 plt.show()
-
