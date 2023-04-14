@@ -43,7 +43,15 @@ https://github.com/SBNSoftware/SBNSoftware.github.io/blob/master/sbn_online_wiki
   
 
 *sbndaq/sbn-nd/DAQInterface/configs/standard/pmtx01.fcl
-  * Added daq.fragment_receiver.fragment_id: 15
+  * Added `daq.fragment_receiver.fragment_id: 15`
+   * Conversion then is: ChannelNumber = fragment_id*NChannels
+  * We need to spedify a name for the board we are using (arbitrary I think): 
+   * `daq.fragment_receiver.boardId: 10`
+  * Important: specify link the board is connected to (from 0 to 3)
+   * `daq.fragment_receiver.link: 0`
+
+ 
+  
   
   * This is the fhicl that will call the DAQ generator/producer. It's what we call from the `run` script
 
@@ -147,3 +155,4 @@ Legend:
 - DQM tutorial: https://cdcvs.fnal.gov/redmine/projects/sbndqm/wiki/Sbndqm_Workshop_April_2023
 - Monitoring webpage: https://sbn-online.fnal.gov/cgi-bin/minargon/minargon.wsgi/PMT
 - Check database directory in sbndqm repository
+
