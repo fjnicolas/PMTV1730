@@ -95,6 +95,7 @@ Cannot disconnect DAQInterface. Recommend running in tmux or screen so it's runn
 - Octal discriminator: https://www.fnal.gov/projects/ckm/jlab/623b-spec.htm
  * Manual: https://web.physics.ucsb.edu/~phys128/experiments/muonphysics/Instrument%20manuals/LeCroy%20623B%20data%20sheet.pdf
 - LeCroy 22 Dual Gate: https://groups.nscl.msu.edu/nscl_library/manuals/lecroy/222.pdf
+- TTL/NIM translater: https://siliconpr0n.org/media/camac/CAMAC3/688al-spec.htm
 
 ## Instructions to reset the crate
 - Make sure no one is running
