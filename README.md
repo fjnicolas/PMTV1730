@@ -113,6 +113,8 @@ Cannot disconnect DAQInterface. Recommend running in tmux or screen so it's runn
 - Convention about signals:
 <img width="847" alt="Captura de pantalla 2023-03-23 a las 15 56 53" src="https://user-images.githubusercontent.com/66068208/227358526-c5c34dd2-b642-4fe4-8e37-c0b16f382e04.png">
 
+- We can trigger the V1730s with both NIM and TTL signals. This is control by this [fhicl parameter](https://github.com/SBNSoftware/sbndaq/blob/develop/sbn-nd/DAQInterface/configs/standard/pmt_standard.fcl#L97).
+ - All TRG IN, TRG OUT and S IN channels need to receive the same leevel signal. PTB uses TTL; so we need TTL signal fro triggering.
 - V1730 Trigger signal: TTL signal (set to 3.3V)
 - Inout V1730 channels: better use NIM signals
 - Quad fanin-fanout: linear analagos, can use both
