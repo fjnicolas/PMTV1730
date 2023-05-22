@@ -10,11 +10,15 @@ import argparse
 import ROOT
 import pandas as pd
 from pandas.plotting import table
-import datetime
+#import datetime
+from datetime import datetime
 import matplotlib.dates as mdates
+from matplotlib.gridspec import GridSpec
+
 
 fBaseline = 0
 fNChannels = 16
+fNOpDet = 320
 fWfSize = 5000
 
 
@@ -26,7 +30,7 @@ def GetColorList(N):
     NUM_STYLES = len(LINE_STYLES)
 
     ColorList = []
-    cm = plt.get_cmap('gist_ncar')
+    cm = plt.get_cmap('gist_rainbow')
     for i in range(NUM_COLORS):
         ColorList.append(cm(i//NUM_STYLES*float(NUM_STYLES)/NUM_COLORS))
         #lines[0].set_linestyle(LINE_STYLES[i%NUM_STYLES])
@@ -90,33 +94,65 @@ def ReadFromROOT(filename, ch_skip=[], waveformRange=None, maxEvents=1e6):
 
 #### Read from AnaROOT txt file ####
 ##########################################
-def ReadFromAnaROOT(filename, ch_skip=[], fVerbose=0):
+def ReadFromAnaROOT(filename, ch_skip=[], fBoardIDList=[], fVerbose=0, fMaxEvents=-1):
 
     print("Reading from AnaTree")
     file = ROOT.TFile.Open(filename)
-    tuple =  file.Get("caenv1730ana/nt_wvfm;1")
+    file.Print()
+    tree_path="caenv1730dump/nt_wvfm"#"caenv1730ana/nt_wvfm;1"
+    tuple =  file.Get(tree_path)
+
+    tuple.Print();
     
     wvMeanChDict = {}
     wvRMSChDict = {}
+    chTempDict = {}
     eventIDDict = {}
-    for ch in range(fNChannels):
+    timeStampDict = {}
+
+    # initialize dictionaries
+    #for ch in range(fNChannels):
+    for ch in range(fNOpDet):
+        eventIDDict[ch]=[]
+        timeStampDict[ch]=[]
         wvMeanChDict[ch]=[]
         wvRMSChDict[ch]=[]
-        eventIDDict[ch]=[]
+        chTempDict[ch]=[]
 
+    eventCounter = 0
     for tree_entry in range( tuple.GetEntries() ):
+        if(fMaxEvents!=-1 and eventCounter>fMaxEvents): continue
+        eventCounter+=1
         tuple.GetEntry(tree_entry)
-        if(fVerbose>=1): print(int(tuple.ch), tuple.ped, tuple.rms)
+        if(fVerbose>=1): print(int(tuple.ch), tuple.ped, tuple.rms, tuple.temp)
         if(int(tuple.ch) in ch_skip): continue
+        if( (tuple.boardId in fBoardIDList)==False and len(fBoardIDList)>0): continue
         wvMeanChDict[int(tuple.ch)].append(tuple.ped)
         wvRMSChDict[int(tuple.ch)].append(tuple.rms)
+        chTempDict[int(tuple.ch)].append(tuple.temp)
+
         eventIDDict[int(tuple.ch)].append(tuple.art_ev)
-        if(fVerbose>=1): print(int(tuple.art_ev), int(tuple.caen_ev))
+        timeStampDict[int(tuple.ch)].append(tuple.stamp_time)
 
-    print( list(eventIDDict.keys())[0] )
-    eventID_V = eventIDDict[list(eventIDDict.keys())[0]]
+        if(fVerbose>=1): print(int(tuple.art_ev), int(tuple.caen_ev), "Ch:",int(tuple.ch), tuple.stamp_time)
 
-    return list(eventID_V), wvMeanChDict, wvRMSChDict
+    eventIDDictFinal = {}
+    timeStampDictFinal = {}
+    wvMeanChDictFinal = {}
+    wvRMSChDictFinal = {}
+    chTempDictFinal = {}
+    for ch in range(fNOpDet):
+        if(len(eventIDDict[ch])>0):
+            eventIDDictFinal[ch] = eventIDDict[ch]
+            timeStampDictFinal[ch] = timeStampDict[ch]
+            wvMeanChDictFinal[ch] = wvMeanChDict[ch]
+            wvRMSChDictFinal[ch] = wvRMSChDict[ch]
+            chTempDictFinal[ch] = chTempDict[ch]
+            print(ch, len(eventIDDictFinal[ch]))
+        
+    
+
+    return eventIDDictFinal, timeStampDictFinal, wvMeanChDictFinal, wvRMSChDictFinal, chTempDictFinal
 ##########################################
 
 
@@ -177,56 +213,68 @@ class TimeXAxisHandle:
 ##########################################
 # plot baseline mean and RMS as a function of time
 # input is EventID_V, WvMeanChDict, WvRMSDict
-def PlotAverageBaseline(eventID_V, wvMeanChDict, wvRMSChDict, chSkip=[], timeAxisHandle=None):
-    fig, axs = plt.subplots(2, 1)
-    fig.subplots_adjust(left=0.075, bottom=0.14, right=0.97, top=0.95, wspace=0.3, hspace=0.45)
+def PlotAverageBaseline(eventIDDict, timeStampDict, wvMeanChDict, wvRMSChDict, chTempDict, chSkip=[], useTimeStamp=True):
+    timeAxisHandle = len(timeStampDict)>0
+    fig = plt.figure("PMT V1730")
+    fig.subplots_adjust(left=0.075, bottom=0.15, right=0.97, top=0.95, wspace=0.3, hspace=0.45)
+    gs = GridSpec(3, 8, hspace=0, wspace=0)
 
-    print("Total processed events", len(eventID_V))
+    # Get channel-color map
+    #cList=GetColorList(fNChannels)
+    cList=GetColorList(len(wvMeanChDict.keys()))
+    cDict = {}
+    for ch_ix, ch in enumerate(wvMeanChDict.keys()):
+        cDict[ch] = cList[ch_ix]
 
-    dateTimesV =  []
-    if(timeAxisHandle):
-        print("Have handled events")
-        for evID in eventID_V:
-            dateTimesV.append(timeAxisHandle.startTime+datetime.timedelta(seconds=timeAxisHandle.period*evID ) )
-    print(dateTimesV)
+    ax2 = fig.add_subplot(gs[2,0:7])
+    ax1 = fig.add_subplot(gs[1,0:7], sharex=ax2)
+    ax0 = fig.add_subplot(gs[0,0:7], sharex=ax1)
+    plt.setp(ax0.get_xticklabels(), visible=False)
+    plt.setp(ax1.get_xticklabels(), visible=False)
+    axLeg = fig.add_subplot(gs[0:2,7], sharex=ax1)
+    axLeg.axis("off")
+   
 
     for ch in wvMeanChDict.keys():
         if(ch in chSkip): continue
+        print(ch)
         #print(ch, len(WvMeanChDict[ch]), len(WvRMSChDict[ch]), len(EventID_V))
-        if(timeAxisHandle):
-            axs[0].scatter(dateTimesV, wvMeanChDict[ch], label="Ch"+str(ch), marker='o', s=3.)
+        labelStr=""
+        if(ch%2==0):
+            labelStr="Ch"+str(ch)
+        if(useTimeStamp):
+            dateTimesV =  []
+            for ts in timeStampDict[ch]:
+                #print(ts, datetime.fromtimestamp(ts).strftime('%D:%H:%M'))
+                dateTimesV.append( datetime.fromtimestamp(ts) ) 
+            ax0.scatter(dateTimesV, chTempDict[ch], c=cDict[ch], label=labelStr, marker='o', s=3.)
+            ax1.scatter(dateTimesV, wvMeanChDict[ch], c=cDict[ch], label=labelStr, marker='o', s=3.)
+            ax2.scatter(dateTimesV, wvRMSChDict[ch], c=cDict[ch], label=labelStr, marker='o', s=3.)
         else:
-            axs[0].scatter(eventID_V, wvMeanChDict[ch], label="Ch"+str(ch), marker='o', s=3.)
-        
-    if(timeAxisHandle):
-        fmt = mdates.DateFormatter('%D:%H:%M')
-        axs[0].xaxis.set_major_formatter(fmt)
-        axs[0].set_xlabel("Time");
-        axs[0].tick_params(axis='x', labelrotation = 45)
-    else:
-        axs[0].set_xlabel("event ID");
-    
-    axs[0].set_ylabel("Pedestal mean [ADC]"); 
-    axs[0].legend(loc='right')
-    axs[0].grid()
+            ax0.scatter(eventIDDict[ch], chTempDict[ch], c=cDict[ch], label=labelStr, marker='o', s=3.)
+            ax1.scatter(eventIDDict[ch], wvMeanChDict[ch], c=cDict[ch], label=labelStr, marker='o', s=3.)
+            ax2.scatter(eventIDDict[ch], wvRMSChDict[ch], c=cDict[ch], label=labelStr, marker='o', s=3.) 
 
-    for ch in range(fNChannels):
-        if(ch in chSkip): continue
-        if(timeAxisHandle):
-            axs[1].scatter(dateTimesV, wvRMSChDict[ch], label="Ch"+str(ch), marker='o', s=3.)
-        else:
-            axs[1].scatter(eventID_V, wvRMSChDict[ch], label="Ch"+str(ch), marker='o', s=3.)
-    if(timeAxisHandle):
-        fmt = mdates.DateFormatter('%D:%H:%M')
-        axs[1].xaxis.set_major_formatter(fmt)
-        axs[1].set_xlabel("Time"); 
-        axs[1].tick_params(axis='x', labelrotation = 45)
-    else:
-        axs[1].set_xlabel("event ID"); 
+    ax1.set_ylabel("Pedestal mean [ADC]"); 
+    ax1.grid()
+
+    ax2.set_ylabel("Pedestal RMS [ADC]"); 
+    ax2.grid()
     
-    axs[1].set_ylabel("Pedestal RMS [ADC]"); 
-    axs[1].legend(loc='right')
-    axs[1].grid()
+    ax0.grid()
+    ax0.set_ylabel(r"Temperature [$^\circ$C]"); 
+
+    if(useTimeStamp):
+        fmt = mdates.DateFormatter('%D:%H:%M:%S')
+        ax2.xaxis.set_major_formatter(fmt)
+        ax2.set_xlabel("Time");
+        ax2.tick_params(axis='x', labelrotation = 45)
+    else:
+        ax2.set_xlabel("event ID");
+
+    handles, labels = ax1.get_legend_handles_labels()
+    axLeg.legend(handles, labels)
+
 
     fig.savefig("average_pedestal.pdf")
 ##########################################
@@ -235,18 +283,13 @@ def PlotAverageBaseline(eventID_V, wvMeanChDict, wvRMSChDict, chSkip=[], timeAxi
 
 # plot baseline statistics
 ##########################################
-def PlotStatisticsBaseline(eventID_V, wvMeanChDict, wvRMSChDict, chSkip=[]):
+def PlotStatisticsBaseline(eventID_V, wvMeanChDict, wvRMSChDict, chTempDict, chSkip=[]):
+
     fig2, axs = plt.subplots(2, 3)
     fig2.subplots_adjust(left=0.075, bottom=0.06, right=0.99, top=0.95, wspace=0.3, hspace=0.45)
 
-    ChPed={}
-    ChPedErr={}
-    ChRMS={}
-    ChRMSErr={}
-
-
-    df = pd.DataFrame(columns=['Ch','ChPed','ChPedErr','ChRMS','ChRMSErr'], index=np.arange(0, fNChannels, 1))
-    dfString = pd.DataFrame(columns=["Ch", "Ped", "RMS"], index=np.arange(0, fNChannels, 1))
+    df = pd.DataFrame(columns=['Ch','ChPed','ChPedErr','ChRMS','ChRMSErr', 'ChTemp', 'ChTempErr', 'ChLoc'])
+    dfString = pd.DataFrame(columns=["Ch", "Ped", "RMS", "T"])
 
     for ch in wvMeanChDict.keys():
         if(ch in chSkip): continue
@@ -254,13 +297,17 @@ def PlotStatisticsBaseline(eventID_V, wvMeanChDict, wvRMSChDict, chSkip=[]):
         ped_err = np.std(wvMeanChDict[ch])
         rms_mean = np.mean(wvRMSChDict[ch])
         rms_err = np.std(wvRMSChDict[ch])
+        t_mean = np.mean(chTempDict[ch])
+        t_err = np.std(chTempDict[ch])
+        ch_loc = ch%2
 
-        df.loc[ch] = [ch,ped_mean, ped_err, rms_mean, rms_err]
+        df.loc[ch] = [ch, ped_mean, ped_err, rms_mean, rms_err, t_mean, t_err, ch_loc]
 
         dfString.loc[ch] = [
             str(ch),
             "{:.1f}".format(ped_mean)+r"$\pm$"+"{:.1f}".format(ped_err),
-            "{:.2f}".format(rms_mean)+r"$\pm$"+"{:.2f}".format(rms_err)
+            "{:.2f}".format(rms_mean)+r"$\pm$"+"{:.2f}".format(rms_err),
+            "{:.2f}".format(t_mean)+r"$\pm$"+"{:.2f}".format(t_err)
         ]
 
 
@@ -269,7 +316,8 @@ def PlotStatisticsBaseline(eventID_V, wvMeanChDict, wvRMSChDict, chSkip=[]):
 
     for ch in wvMeanChDict.keys():
         if(ch in chSkip): continue
-        axs[0][0].hist(wvMeanChDict[ch], label="Ch"+str(ch), histtype="step")
+        labelStr="Ch"+str(ch)
+        axs[0][0].hist(wvMeanChDict[ch], label=labelStr, histtype="step")
     axs[0][0].set_xlabel("Baseline mean"); axs[0][0].set_ylabel("# entries"); 
     axs[0][0].grid()
     axs[0][0].legend()
@@ -277,25 +325,44 @@ def PlotStatisticsBaseline(eventID_V, wvMeanChDict, wvRMSChDict, chSkip=[]):
     binsRMS=np.arange(0, 5, 0.005)
     for ch in wvMeanChDict.keys():
         if(ch in chSkip): continue
-        axs[0][1].hist(wvRMSChDict[ch], bins=binsRMS, label="Ch"+str(ch), histtype="step")
-    axs[0][1].set_xlabel("Baseline RMS"); axs[0][1].set_ylabel("# entries"); 
-    axs[0][1].grid()
-    axs[0][1].legend()
+        labelStr="Ch"+str(ch)
+        axs[1][0].hist(wvRMSChDict[ch], bins=binsRMS, label=labelStr, histtype="step")
+    axs[1][0].set_xlabel("Baseline RMS"); axs[1][0].set_ylabel("# entries"); 
+    axs[1][0].grid()
+    axs[1][0].legend()
 
-
-    axs[1][0].table(cellText=dfString.values, colLabels=dfString.columns, loc='center')
-    axs[1][0].axis('off')
 
     axs[1][1].errorbar(df.Ch, df.ChRMS, df.ChRMSErr, ls='none', marker="o")
     axs[1][1].grid()
     axs[1][1].set_xlabel("Channel"); axs[1][1].set_ylabel("Pedestal RMS [ADC]"); 
-    axs[1][1].set_xticks(np.arange(fNChannels))
+    axs[1][1].set_xticks(np.arange( min(df.Ch), max(df.Ch), 2))
 
-    axs[1][2].errorbar(df.Ch, df.ChPed, df.ChPedErr, ls='none', marker="o")
+    axs[0][1].errorbar(df.Ch, df.ChPed, df.ChPedErr, ls='none', marker="o")
+    axs[0][1].grid()
+    axs[0][1].set_xlabel("Channel"); axs[0][1].set_ylabel("Pedestal mean [ADC]");
+    axs[0][1].set_xticks(np.arange( min(df.Ch), max(df.Ch), 2)) 
+
+
+    axs[1][2].errorbar(df.ChTemp[df.ChLoc==0], df.ChRMS[df.ChLoc==0], df.ChRMSErr[df.ChLoc==0], ls='none', marker="o", label="Even")
+    axs[1][2].errorbar(df.ChTemp[df.ChLoc==1], df.ChRMS[df.ChLoc==1], df.ChRMSErr[df.ChLoc==1], ls='none', marker="o", label="Odd")
     axs[1][2].grid()
-    axs[1][2].set_xlabel("Channel"); axs[1][2].set_ylabel("Pedestal mean [ADC]");
-    axs[1][2].set_xticks(np.arange(fNChannels)) 
+    axs[1][2].set_xlabel(r"Channel temperature [$^\circ$ C]");
+    axs[1][2].set_ylabel("Pedestal RMS [ADC]"); 
+    axs[1][2].legend()
+
+    axs[0][2].errorbar(df.ChTemp[df.ChLoc==0], df.ChPed[df.ChLoc==0], df.ChPedErr[df.ChLoc==0], ls='none', marker="o", label="Even")
+    axs[0][2].errorbar(df.ChTemp[df.ChLoc==1], df.ChPed[df.ChLoc==1], df.ChPedErr[df.ChLoc==1], ls='none', marker="o", label="Odd")
+    axs[0][2].grid()
+    axs[0][2].set_xlabel(r"Channel temperature [$^\circ$ C]");
+    axs[0][2].set_ylabel("Pedestal mean [ADC]");
+    axs[0][2].legend()
 
     fig2.savefig("statistics_pedestal.pdf")
+
+
+    """fig3, axs = plt.subplots(1, 1)
+    axs.table(cellText=dfString.values, colLabels=dfString.columns, loc='center')
+    axs.axis('off')
+    fig3.savefig("statistics_pedestal_table.pdf")"""
 ##########################################
 

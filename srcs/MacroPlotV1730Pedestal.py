@@ -27,8 +27,11 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-s", "--Filepath", help="Input file name",  default="none")
 parser.add_argument("-o", "--Option", help="Input option", type=int, default=1)
 parser.add_argument("-n", "--NEv", help="Max Events", type=int, default=1e6)
-parser.add_argument("-tHandle", "--TimeHandle", help="Use time handle", type=int, default=0)
+parser.add_argument("-timeStamp", "--UseTimeStamp", help="Use time stamp", type=int, default=1)
 parser.add_argument("-chSkip", "--ChSkip", type=int, action='append', help="Channels to skip", default=[])
+parser.add_argument("-b", "--BoardID", type=int, action='append', help="Boards ID to analyze", default=[])
+parser.add_argument("-debug", "--Debug", type=int, default=0)
+parser.add_argument("-stats", "--MakeStats", type=int, default=0)
 parserargs = parser.parse_args()
 
 
@@ -40,35 +43,24 @@ fSelectedBins = fPostBins
 
 fChSkip = parserargs.ChSkip
 
+ChTempDict = {}
+EventID_V = {} 
+TimeStamp_V = {} 
+WvMeanChDict = {}
+WvRMSChDict = {}
+
 if(parserargs.Option == 1):
-    EventID_V, WvMeanChDict, WvRMSChDict = ReadFromAnaROOT(parserargs.Filepath)
+    EventIDDict, TimeStampDict, WvMeanChDict, WvRMSChDict, ChTempDict = ReadFromAnaROOT(parserargs.Filepath, parserargs.ChSkip, parserargs.BoardID, parserargs.Debug, parserargs.NEv)
 elif(parserargs.Option == 2):
-    EventID_V, WvMeanChDict, WvRMSChDict = ReadFromROOT(parserargs.Filepath, fChSkip, waveformRange=fSelectedBins, maxEvents=parserargs.NEv)
+    EventIDDict, WvMeanChDict, WvRMSChDict = ReadFromROOT(parserargs.Filepath, fChSkip, waveformRange=fSelectedBins, maxEvents=parserargs.NEv)
 elif(parserargs.Option == 3):
-    EventID_V, WvMeanChDict, WvRMSChDict = ReadFromTxt(parserargs.Filepath)
+    EventIDDict, WvMeanChDict, WvRMSChDict = ReadFromTxt(parserargs.Filepath)
 
 
 
-print("MAX", max(EventID_V), "MIN", min(EventID_V) )
-print(EventID_V)
-
-
-
-if(parserargs.TimeHandle==1):
-    # run 03/23
-    #timeHandle = TimeXAxisHandle( datetime.datetime(2023, 3, 23, 19, 42, 0), 0.05)
-    # run 03/24
-    timeHandle = TimeXAxisHandle( datetime.datetime(2023, 3, 24, 16, 56, 0), 0.05)
-    # run 02/28
-    #timeHandle = TimeXAxisHandle( datetime.datetime(2023, 2, 28, 17, 18, 0), 0.04)
-    
-    PlotAverageBaseline(EventID_V, WvMeanChDict, WvRMSChDict, timeAxisHandle=timeHandle)
-else:
-    PlotAverageBaseline(EventID_V, WvMeanChDict, WvRMSChDict)
-
-
-
-PlotStatisticsBaseline(EventID_V, WvMeanChDict, WvRMSChDict)
+PlotAverageBaseline(EventIDDict, TimeStampDict, WvMeanChDict, WvRMSChDict,  ChTempDict, parserargs.ChSkip, parserargs.UseTimeStamp)
+if(parserargs.MakeStats==1):
+    PlotStatisticsBaseline(EventIDDict, WvMeanChDict, WvRMSChDict, ChTempDict)
 
 
 plt.show()
