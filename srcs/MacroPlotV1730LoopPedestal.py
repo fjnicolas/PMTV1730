@@ -1,17 +1,12 @@
 import numpy as np
 from matplotlib import pyplot as plt
-#%matplotlib inline
-from scipy.signal import convolve
-import random
-from numpy import loadtxt
 plt.rcParams['figure.figsize'] = [12, 7]
-from scipy.fft import fft, ifft
 import argparse
 import glob
-import ROOT
 import pandas as pd
-from pandas.plotting import table
 from PlotUtilsV1730 import *
+
+# Macro to obtaing the correlation matrix
 
 params = {'legend.fontsize': 'small',
           'figure.figsize': (12, 8),
@@ -47,7 +42,6 @@ for filepath in glob.iglob(parserargs.Filepath):
 
 DataRMS = np.empty((len(InputFileList), fNChannels))
 DataPed = np.empty((len(InputFileList), fNChannels))
-
 
 fRMSMin=1e6; fRMSMax=-1e6;
 fPedMin=1e6; fPedMax=-1e6;
@@ -102,8 +96,6 @@ for ch in range(fNChannels):
 
 
 print(AverageRMS, AverageRMSErr, AveragePedErr)
-#plt.set_cmap("YlOrBr")
-#fRMSMax = 2.65
 fig2, axs = plt.subplots(2, 2)
 fig2.subplots_adjust(left=0.075, bottom=0.082, right=0.99, top=0.95, wspace=0.3, hspace=0.45)
 

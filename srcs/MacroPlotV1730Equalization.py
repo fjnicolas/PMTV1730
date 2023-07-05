@@ -1,16 +1,8 @@
 import numpy as np
 from matplotlib import pyplot as plt
-#%matplotlib inline
-from scipy.signal import convolve
-import random
-from numpy import loadtxt
 plt.rcParams['figure.figsize'] = [12, 7]
-from scipy.fft import fft, ifft
 import argparse
-import glob
-import ROOT
 import pandas as pd
-from pandas.plotting import table
 from PlotUtilsV1730 import *
 
 params = {'legend.fontsize': 'small',
@@ -26,57 +18,80 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-s", "--Filepath", help="Input file name",  default="none")
 parser.add_argument("-o", "--Option", help="Input option", type=int, default=1)
 parser.add_argument("-n", "--NEv", help="Max Events", type=int, default=1e6)
+parser.add_argument("-timeStamp", "--UseTimeStamp", help="Use time stamp", type=int, default=1)
 parser.add_argument("-chSkip", "--ChSkip", type=int, action='append', help="Channels to skip", default=[])
+parser.add_argument("-b", "--BoardID", type=int, action='append', help="Boards ID to analyze", default=[])
+parser.add_argument("-debug", "--Debug", type=int, default=0)
 parserargs = parser.parse_args()
-fBaseline = 0
-fNChannels = 16
-fWfSize = 5000
 
-fTargetADC = 8000
-fChListWildcard = [0, 4, 8, 12]
+fColor1 = "midnightblue"
+fColor2 = "maroon"
 
-InputFileList={}
-for filepath in glob.iglob(parserargs.Filepath):
-    print("File", filepath)
-    if( filepath.find(".root")!=-1 ):
-        ix=filepath.find(".root")-1
-        setupLabel = filepath[ix]
-        print("Setup label:", setupLabel)
-        InputFileList[setupLabel] = filepath
-   
-   
+# Setup 1
+fDACStart = 0.8; fDACStep = 0.02
+# Setup 2
+fDACStart = 0.83; fDACStep = 0.02
+# Setup 3
+#fDACStart = 0.78; fDACStep = 0.04
+# Setup 4
+#fDACStart = 0.85; fDACStep = 0.01
 
+fMaxDAC=2**16 - 1
+fDACMaxCali = fMaxDAC-0.96*fMaxDAC
+fTargetADC = 0.95*2**14
+fChListWildcard = [160, 190, 200, 210]
+fChListWildcard = [193, 205, 207]
+print("MaxDAC for calibration", fDACMaxCali)
 
+# read the TTree
+ChTempDict = {}
+EventIDDict = {} 
+RunIDDict = {} 
+TimeStamp_V = {} 
+WvMeanChDict = {}
+WvRMSChDict = {}
+RunIDDict, EventIDDict, TimeStampDict, WvMeanChDict, WvRMSChDict, ChTempDict = ReadFromAnaROOT(parserargs.Filepath, "all", parserargs.ChSkip, parserargs.BoardID, parserargs.Debug, parserargs.NEv)
 
+# get run numbers
+RunSetV = [item for sublist in list(RunIDDict.values()) for item in sublist]
+RunSetV = sorted (set( RunSetV ))
+
+# get channel IDs
+ChSetV = sorted (set( RunIDDict.keys() ))
+
+# initialize variables
+DataDict = {}
+DCOffset_V = []
+PedMean = {}
+PedMeanErr = {}
+for ch in ChSetV:
+    PedMean[ch] = []
+    PedMeanErr[ch] = []
+runCounter = 0
 fRMSMin=1e6; fRMSMax=-1e6;
 fPedMin=1e6; fPedMax=-1e6;
 
-fileix=-1
-SetupLabelV=[]
-file_counter = -1
-DataDict = {}
-
-for fileix, setup in enumerate(InputFileList):
-    filepath=InputFileList[setup]
-    file_counter+=1
-    print(ix, " Analyzing file", filepath, " with setup", setup)
-
-    setupLabel = setup
-    SetupLabelV.append(setupLabel)
-    
-    EventID_V, WvMeanChDict, WvRMSChDict = ReadFromAnaROOT(filepath)
+# loop over different runs
+for runID in RunSetV:
+    print(runID)
+    dacValue = fMaxDAC - (fDACStart + fDACStep*runCounter) * fMaxDAC
+    runCounter+=1
 
     df = pd.DataFrame(columns=['Ch','ChPed','ChPedErr','ChRMS','ChRMSErr'])
 
-    for ch in range(fNChannels):
+    for ch in ChSetV:
         # initialize
         ped_mean=ped_err=rms_mean=rms_err=0
 
         # fill
-        ped_mean = np.mean(WvMeanChDict[ch])
-        ped_err = np.std(WvMeanChDict[ch])
-        rms_mean = np.mean(WvRMSChDict[ch])
-        rms_err = np.std(WvRMSChDict[ch])
+        runV = RunIDDict[ch]
+        pedV = WvMeanChDict[ch]
+        rmsV = WvRMSChDict[ch]
+        filterRun = (runV == runID)
+        ped_mean = np.mean( pedV[filterRun] )
+        ped_err = np.std( pedV[filterRun] )
+        rms_mean = np.mean( rmsV[filterRun] )
+        rms_err = np.std( rmsV[filterRun] )
        
         if(ped_mean>fPedMax): fPedMax=ped_mean
         if(ped_mean<fPedMin): fPedMin=ped_mean
@@ -84,44 +99,49 @@ for fileix, setup in enumerate(InputFileList):
         if(rms_mean<fRMSMin): fRMSMin=rms_mean
 
         df.loc[ch] = [ch, ped_mean, ped_err, rms_mean, rms_err]
+       
+        if( dacValue>=fDACMaxCali ):
+            PedMean[ch].append(ped_mean)
+            PedMeanErr[ch].append(ped_err)
     
-    DataDict[setupLabel] = df
+    DataDict[runID] = df
+    if( dacValue>=fDACMaxCali ):
+        DCOffset_V.append( dacValue )
 
-    print(df)
-
-
-DCOffset_V = np.array( [32768, 30768, 34768, 36768] )
-
-PedMean = {}
-PedMeanErr = {}
-for ch in range(0, fNChannels):
-    PedMean[ch] = []
-    PedMeanErr[ch] = []
-
-for fileix, dflabel in enumerate(DataDict):
-    df = DataDict[dflabel]
-    print("Dataaa\n", df)
-
-    for ch in range(0, fNChannels):
-        PedMean[ch].append(df["ChPed"][ch])
-        PedMeanErr[ch].append(df["ChPedErr"][ch])
+print("Run data", DataDict)
 
 
-#plt.set_cmap("YlOrBr")
-#fRMSMax = 2.65
-fig2, axs = plt.subplots(2, 2)
-fig2.subplots_adjust(left=0.075, bottom=0.082, right=0.99, top=0.95, wspace=0.3, hspace=0.45)
-fColorList = GetColorList(fNChannels)
+params = {'figure.figsize': (10, 8),
+        'axes.labelsize': 'x-large',   
+        'axes.titlesize': 'x-large',      
+        'xtick.labelsize':'large',
+        'ytick.labelsize':'x-large'}
+
+plt.rcParams.update(params)
+
+fig2, axs = plt.subplots(2, 2, constrained_layout=True)
+fig2.subplots_adjust(left=0.13, bottom=0.082, right=0.99, top=0.95, wspace=0.5, hspace=0.45)
+
+# get color list
+cList=GetColorList(len(ChSetV))
+cDict = {}
+for ch_ix, ch in enumerate(ChSetV):
+    cDict[ch] = cList[ch_ix]
+
+minCh = min(ChSetV)
+maxCh = max(ChSetV)
 
 FitSlopes = []
 FitIntercepts = []
 FitSlopesErr = []
 FitInterceptsErr = []
-
 AdHocDCOffsets = {}
 
-for ch in range(0, fNChannels):
+print("Target ADC is ", fTargetADC)
+for ch in ChSetV:
     # get linear fit paramters
+    print("PO", DCOffset_V )
+    print("PO",  np.array(PedMean[ch]) )
     pars, cov = np.polyfit(DCOffset_V, np.array(PedMean[ch]), 1, cov=True)
     pars_err = np.sqrt(np.diag(cov))
     FitSlopes.append( pars[0] )
@@ -129,48 +149,78 @@ for ch in range(0, fNChannels):
     FitSlopesErr.append( pars_err[0] )
     FitInterceptsErr.append( pars_err[1] )
 
-    adHocDC = AdHocDCOffsets[ch] = (fTargetADC-pars[1])/pars[0]
+    adHocDC = (fTargetADC-pars[1])/pars[0]
+
+    print(ch, adHocDC)
+
+
+    AdHocDCOffsets[ch] = adHocDC
 
     equalizedFhiclLabel = "daq.fragment_receiver.channelPedestal"+str(ch)+": "+str(int(adHocDC))
     print(equalizedFhiclLabel)
 
     # plot
     xfit_plot = np.linspace( min(DCOffset_V), max(DCOffset_V), 50)
-    axs[0,0].errorbar(DCOffset_V, PedMean[ch], PedMeanErr[ch], ls='none', marker="o", c=fColorList[ch], label="Ch "+str(ch))
-    axs[0,0].plot(xfit_plot, pars[0]*xfit_plot+pars[1], c=fColorList[ch])
+    axs[0,0].errorbar(DCOffset_V, PedMean[ch], PedMeanErr[ch], ls='none', marker="o", c=cDict[ch], label="Ch "+str(ch))
+    axs[0,0].plot(xfit_plot, pars[0]*xfit_plot+pars[1], c=cDict[ch])
 
     if(ch in fChListWildcard):
-        axs[0,1].errorbar(DCOffset_V, PedMean[ch], PedMeanErr[ch], ls='none', marker="o", c=fColorList[ch], label="Ch "+str(ch))
-        axs[0,1].plot(xfit_plot, pars[0]*xfit_plot+pars[1], c=fColorList[ch])
+        axs[0,1].errorbar(DCOffset_V, PedMean[ch], PedMeanErr[ch], ls='none', marker="o", c=cDict[ch], label="Ch "+str(ch))
+        axs[0,1].plot(xfit_plot, pars[0]*xfit_plot+pars[1], c=cDict[ch])
 
-    
-
-axs[0,0].legend()
-axs[0,0].set_xlabel(r"DCOffset [$\tilde{\rm ADC}$]")
-axs[0,0].set_ylabel("Pedestal mean [ADC]")
+axs[0,0].set_xlabel(r"${\rm DAC}_{\rm DCoffset}$ ")
+axs[0,0].set_ylabel(r"$\overline{\rm B}$ [ADC]")
 axs[0,0].grid()
 
+divider = make_axes_locatable(axs[0][0])
+cax = divider.new_vertical(size = '2.5%', pad = 0.25)
+fig2.add_axes(cax)
+myCmap = LinearSegmentedColormap.from_list("ChannelColorMap", list(cDict.values()), N=len(cDict.values()))
+cbar = plt.colorbar(cm.ScalarMappable(cmap=myCmap), cax=cax, orientation = 'horizontal', ticks=np.linspace(0, 1, 4))
+cbar.ax.set_xticklabels(np.linspace(minCh, maxCh-1, 4).astype(int).tolist(), fontsize=10)
+cbar.ax.set_ylabel("Ch", fontsize=10)
+
 axs[0,1].legend()
-axs[0,1].set_xlabel(r"DCOffset [$\tilde{\rm ADC}$]")
-axs[0,1].set_ylabel("Pedestal mean [ADC]")
+axs[0,1].set_xlabel(r"${\rm DAC}_{\rm DCoffset}$ ")
+axs[0,1].set_ylabel(r"$\overline{\rm B}$ [ADC]")
 axs[0,1].grid()
 
-XChannelsV = np.arange(0, fNChannels, 1)
-axs[1,0].errorbar(XChannelsV, FitSlopes, FitSlopesErr, ls='none', marker="o")
-axs[1,1].errorbar(XChannelsV, FitIntercepts, FitInterceptsErr, ls='none', marker="o")
 
-axs[1,0].legend()
-axs[1,0].set_xlabel("Channel ID")
-axs[1,0].set_ylabel(r"Fit slope [ADC/$\tilde{\rm ADC}$]")
+axs[1,0].errorbar(ChSetV, FitSlopes, FitSlopesErr, ls='none', marker="o", c=fColor1)
+axs[1,1].errorbar(ChSetV, FitIntercepts, FitInterceptsErr, ls='none', marker="o", c=fColor2)
+
+axs[1,0].set_xlabel("Channel")
+axs[1,0].set_ylabel(r"$\alpha$ [ADC]")
 axs[1,0].grid()
 
-
-axs[1,1].legend()
-axs[1,1].set_xlabel("Channel ID")
-axs[1,1].set_ylabel("Fit intercept [ADC]")
+axs[1,1].set_xlabel("Channel")
+axs[1,1].set_ylabel(r"$\beta$ [ADC]")
 axs[1,1].grid()
 
-print("AdHocs DC offsets:\n", AdHocDCOffsets)
+
+for ch in ChSetV:
+    adHocDC = AdHocDCOffsets[ch]
+    equalizedFhiclLabel = "daq.fragment_receiver.channelPedestal"+str(ch)+": "+str(int(adHocDC))
+    print(equalizedFhiclLabel)
+
+for ch in ChSetV:
+    if(ch%16==0): print("\n\n")
+    adHocDC = AdHocDCOffsets[ch]
+    equalizedFhiclLabel = "daq.fragment_receiver.channelPedestal"+str(ch%16)+": "+str(int(adHocDC))
+    print(equalizedFhiclLabel)
+
+
+outputFilepath = os.path.dirname(os.path.realpath(__file__))+"/../plots/equalization/"
+# create directory if it doesn't exist
+if not os.path.exists(outputFilepath):
+    os.makedirs(outputFilepath)
+os.makedirs(outputFilepath+"png/", exist_ok=True)
+os.makedirs(outputFilepath+"pdf/", exist_ok=True)
+
+SaveSubplots(fig2, axs, outputFilepath, "equalization" )
+
+
 
 
 plt.show()
+

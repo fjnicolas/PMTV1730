@@ -1,25 +1,119 @@
 import numpy as np
 from matplotlib import pyplot as plt
-#%matplotlib inline
-from scipy.signal import convolve
-import random
-from numpy import loadtxt
-plt.rcParams['figure.figsize'] = [12, 7]
-from scipy.fft import fft, ifft
-import argparse
 import ROOT
 import pandas as pd
-from pandas.plotting import table
-#import datetime
 from datetime import datetime
 import matplotlib.dates as mdates
-from matplotlib.gridspec import GridSpec
+import matplotlib.cm as cm
+from matplotlib import gridspec
+import matplotlib.transforms as mtransforms
+from matplotlib.colors import LinearSegmentedColormap
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from matplotlib.ticker import FormatStrFormatter
+import os
 
+
+plt.rcParams['figure.figsize'] = [13, 8]
+from scipy.optimize import curve_fit
+
+
+fColor1 = "midnightblue"
+fColor2 = "maroon"
 
 fBaseline = 0
 fNChannels = 16
 fNOpDet = 320
 fWfSize = 5000
+fPlotStackedHistograms=False
+
+# Define Gaussian function
+def gaussian(x, mu, sigma, A):
+    return A * np.exp(-(x - mu)**2 / (2 * sigma**2))
+
+
+def GetValuesFromGaussFit(data, binScheme):
+    # Create histogram
+    hist, bin_edges = np.histogram(data, bins=binScheme, density=True)
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+
+    # Fit Gaussian function to histogram
+    p0 = [np.mean(data), np.std(data), np.max(hist)]
+    popt, pcov = curve_fit(gaussian, bin_centers, hist, p0=p0)
+
+    return popt[0], popt[1]
+
+
+def calculate_local_variation(vector, n_neighbors):
+    local_variations = []
+    for i in range(len(vector)):
+        start_index = max(0, i - n_neighbors)
+        end_index = min(i + n_neighbors + 1, len(vector))
+        local_values = vector[start_index:end_index]
+        local_variation = np.max(local_values) - np.min(local_values)
+        sign = np.sign(local_values[-1] - local_values[0])
+        local_variations.append(sign * local_variation)
+    return local_variations
+
+
+def nearest_neighbors_smoothing(data, window_size):
+    smoothed_data = []
+    for i in range(len(data)):
+        start_index = max(0, i - window_size + 1)
+        end_index = min(i + window_size, len(data))
+        neighbors = data[start_index:end_index]
+        smoothed_value = sum(neighbors) / len(neighbors)
+        smoothed_data.append(smoothed_value)
+    return smoothed_data
+
+
+def GetBiasAndStdDev(x, y, nbins, minentries_perbin):
+    bin1x=min(x) 
+    bin2x=max(x)
+    hp=ROOT.TProfile("", ";", nbins, bin1x, bin2x, "s")
+    for i in range(min(len(x), len(y))):
+        hp.Fill( x[i], y[i] )
+
+    X=[]; Mean=[]; StdDev=[];
+    for k in range(hp.GetNbinsX()):
+        if(hp.GetBinEntries(k)>=minentries_perbin):
+            X.append(hp.GetBinCenter(k));
+            Mean.append(hp.GetBinContent(k));
+            StdDev.append(hp.GetBinError(k));
+    return X, Mean, StdDev
+
+# Make legend using a cmap
+def DrawChannelColorMap(cax, colorDict):
+    colorMap = LinearSegmentedColormap.from_list("ChannelColorMap", list(colorDict.values()), N=len(colorDict.values()))
+    cbar = plt.colorbar(cm.ScalarMappable(cmap=colorMap), cax=cax, ticks=np.linspace(0, 1, 4), 
+                        orientation="horizontal")
+    cbar.ax.set_xticklabels(np.linspace( min(colorDict.keys()), max(colorDict.keys()), 4).astype(int).tolist())
+    cbar.ax.set_ylabel("Ch", fontsize=10)
+    
+def SaveSubplots(fig, axs, outputFilepath, filename, expFrac=1.05):
+    # save full figure
+    fig.savefig(outputFilepath+"pdf/"+filename+".pdf")
+    fig.savefig(outputFilepath+"png/"+filename+".png")
+    
+    # Iterate over the subplots
+    nrows = len(axs[0])
+    ncols = len(axs)
+
+    # save individual plots
+    count = 0
+    for i in range(nrows):
+        for j in range(ncols):
+            
+            # format for cropping is [[x0, y0], [x1, y1]]
+            dims = [ [i*1./nrows, j*1./ncols], [(i+1.)/nrows, (j+1)*1./ncols] ]
+            #png
+            fig.savefig(outputFilepath+"png/"+filename+f'_sp{count}'+".png", bbox_inches=mtransforms.Bbox(dims).
+            transformed(fig.transFigure - fig.dpi_scale_trans))
+            #pdf
+            fig.savefig(outputFilepath+"pdf/"+filename+f'_sp{count}'+".pdf", bbox_inches=mtransforms.Bbox(dims).
+            transformed(fig.transFigure - fig.dpi_scale_trans))
+            count+=1
+            # other method
+            #fig.savefig(outputFilepath+"pdf/"+filename+f'_sp{i+1}'+".pdf", bbox_inches=extent.expanded(1.06, 1.22))
 
 
 ##### COLOR LIST #####
@@ -37,169 +131,14 @@ def GetColorList(N):
 
     return ColorList
 
-#### Read from ROOT txt file ####
-##########################################
-def ReadFromROOT(filename, ch_skip=[], waveformRange=None, maxEvents=1e6):
-    file = ROOT.TFile.Open(filename)
-    tree =  file.Get("caenv1730dump/events")
-    print ("Tree Entries: ", tree.GetEntries())
-    
-    startIx = 0
-    endIx = fWfSize
-    if(waveformRange):
-        startIx = waveformRange[0]
-        endIx = waveformRange[1]
 
-    ## Initialize dictionaries
-    eventCounter = 0
-    wvMeanChDict = {}
-    wvRMSChDict = {}
-    eventID_V = []
-    for ch in range(fNChannels):
-        wvMeanChDict[ch]=[]
-        wvRMSChDict[ch]=[]
-
-    for entry,tree_entry in enumerate(tree):
-        if(eventCounter>maxEvents): continue
-        eventCounter+=1
-        
-        #Event IDs
-        eventID= tree_entry.fEvent
-        runID= tree_entry.fRun
-        print(eventCounter, "Run ID", runID, "Event ID: ", eventID)
-        
-        #Waveforms
-        #fTicksVec=tree.fTicksVec
-        WvfmsVec=list(tree_entry.fWvfmsVec)
-
-        
-        for ch, wave in enumerate(WvfmsVec):
-            if(ch in ch_skip): continue
-            wf=list(wave)
-            if(endIx>len(wf)):
-                endIx = len(wf)
-            wf=np.array(wf[startIx:endIx])
-
-            ch_mean = np.mean(wf)   
-            ch_stddev = np.std(wf)
-        
-            wvMeanChDict[ch].append(ch_mean)
-            wvRMSChDict[ch].append(ch_stddev)
-
-        eventID_V.append(eventID)
-
-    return eventID_V, wvMeanChDict, wvRMSChDict
-##########################################
-
-
-#### Read from AnaROOT txt file ####
-##########################################
-def ReadFromAnaROOT(filename, ch_skip=[], fBoardIDList=[], fVerbose=0, fMaxEvents=-1):
-
-    print("Reading from AnaTree")
-    file = ROOT.TFile.Open(filename)
-    file.Print()
-    tree_path="caenv1730dump/nt_wvfm"#"caenv1730ana/nt_wvfm;1"
-    tuple =  file.Get(tree_path)
-
-    tuple.Print();
-    
-    wvMeanChDict = {}
-    wvRMSChDict = {}
-    chTempDict = {}
-    eventIDDict = {}
-    timeStampDict = {}
-
-    # initialize dictionaries
-    #for ch in range(fNChannels):
-    for ch in range(fNOpDet):
-        eventIDDict[ch]=[]
-        timeStampDict[ch]=[]
-        wvMeanChDict[ch]=[]
-        wvRMSChDict[ch]=[]
-        chTempDict[ch]=[]
-
-    eventCounter = 0
-    for tree_entry in range( tuple.GetEntries() ):
-        if(fMaxEvents!=-1 and eventCounter>fMaxEvents): continue
-        eventCounter+=1
-        tuple.GetEntry(tree_entry)
-        if(fVerbose>=1): print(int(tuple.ch), tuple.ped, tuple.rms, tuple.temp)
-        if(int(tuple.ch) in ch_skip): continue
-        if( (tuple.boardId in fBoardIDList)==False and len(fBoardIDList)>0): continue
-        wvMeanChDict[int(tuple.ch)].append(tuple.ped)
-        wvRMSChDict[int(tuple.ch)].append(tuple.rms)
-        chTempDict[int(tuple.ch)].append(tuple.temp)
-
-        eventIDDict[int(tuple.ch)].append(tuple.art_ev)
-        timeStampDict[int(tuple.ch)].append(tuple.stamp_time)
-
-        if(fVerbose>=1): print(int(tuple.art_ev), int(tuple.caen_ev), "Ch:",int(tuple.ch), tuple.stamp_time)
-
-    eventIDDictFinal = {}
-    timeStampDictFinal = {}
-    wvMeanChDictFinal = {}
-    wvRMSChDictFinal = {}
-    chTempDictFinal = {}
-    for ch in range(fNOpDet):
-        if(len(eventIDDict[ch])>0):
-            eventIDDictFinal[ch] = eventIDDict[ch]
-            timeStampDictFinal[ch] = timeStampDict[ch]
-            wvMeanChDictFinal[ch] = wvMeanChDict[ch]
-            wvRMSChDictFinal[ch] = wvRMSChDict[ch]
-            chTempDictFinal[ch] = chTempDict[ch]
-            print(ch, len(eventIDDictFinal[ch]))
-        
-    
-
-    return eventIDDictFinal, timeStampDictFinal, wvMeanChDictFinal, wvRMSChDictFinal, chTempDictFinal
-##########################################
-
-
-#### Read from ROOT file ####
-##########################################
-def ReadFromTxt(filename):
-    ##########################################
-    import pandas as pd
-    DF = pd.read_table(parserargs.Filepath, delim_whitespace=True, header=None)
-    ##########################################
-
-    ## Initialize dictionaries
-    eventCounter = 0
-    wvMeanChDict = {}
-    wvRMSChDict = {}
-    eventID_V = []
-    for ch in range(fNChannels):
-        wvMeanChDict[ch]=[]
-        wvRMSChDict[ch]=[]
-
-    for ixStep in range( 0, len(DF), fWfSize ):
-        print(ixStep, ixStep+fWfSize)
-        data = DF[ixStep:ixStep+fWfSize]
-
-        eventCounter+=1
-        #Event IDs
-        eventID= eventCounter
-        print(eventCounter, "Event ID: ", eventID)
-
-        if(ixStep>parserargs.NEv): continue
-
-        for (ch, wf) in data.iteritems():
-            if(ch==0): continue
-            chIx=ch-1
-            wf = np.array(wf.values)-fBaseline
-            print('Plotting channel : ', ch, " Length : ", len(wf))
-
-            ch_mean = np.mean(wf)   
-            ch_stddev = np.std(wf)
-        
-            wvMeanChDict[chIx].append(ch_mean)
-            wvRMSChDict[chIx].append(ch_stddev)
-
-        eventID_V.append(eventID)
-
-    return eventID_V, wvMeanChDict, wvRMSChDict
-##########################################
+#### Get stats string
+def GetStatsStr(v, l0="", entries=True, mu=True, stddev=True, prec="{:.1f}"):
+    if(l0!=""): l0+="\n"
+    if(entries): l0+=r"Entries="+str(len(v))+"\n"
+    if(mu): l0+=r"$\mu$="+prec.format(np.mean(v))
+    if(stddev): l0+=r", $\sigma$="+prec.format(np.std(v))
+    return l0
 
 ##########################################
 # class handle for baseline vs time plots
@@ -213,95 +152,272 @@ class TimeXAxisHandle:
 ##########################################
 # plot baseline mean and RMS as a function of time
 # input is EventID_V, WvMeanChDict, WvRMSDict
-def PlotAverageBaseline(eventIDDict, timeStampDict, wvMeanChDict, wvRMSChDict, chTempDict, chSkip=[], useTimeStamp=True):
-    timeAxisHandle = len(timeStampDict)>0
-    fig = plt.figure("PMT V1730")
-    fig.subplots_adjust(left=0.075, bottom=0.15, right=0.97, top=0.95, wspace=0.3, hspace=0.45)
-    gs = GridSpec(3, 8, hspace=0, wspace=0)
+def PlotAverageBaseline(eventIDDict, timeStampDict, wvMeanChDict, wvRMSChDict, chTempDict, plotScheme={"RMS":0, "Temp":1, "B":2}, chSkip=[], useTimeStamp=True, nNeighboursSmooth=1):
+
 
     # Get channel-color map
-    #cList=GetColorList(fNChannels)
     cList=GetColorList(len(wvMeanChDict.keys()))
     cDict = {}
     for ch_ix, ch in enumerate(wvMeanChDict.keys()):
         cDict[ch] = cList[ch_ix]
+    fMarkerSize = 1.
+    
+    fNN = nNeighboursSmooth
 
+    params = {'figure.figsize': (13, 8),
+         'axes.labelsize': 'x-large',   
+         'axes.titlesize': 'x-large',      
+         'xtick.labelsize':'large',
+         'ytick.labelsize':'x-large'}
+    
+    plt.rcParams.update(params)
+    fig = plt.figure("PMT V1730")
+    fig.subplots_adjust(left=0.1, bottom=0.175, right=0.97, top=0.95, wspace=0.3, hspace=0.45)
+    gs = gridspec.GridSpec(3, 8, hspace=0, wspace=1.5)
+
+    # define the subplots
     ax2 = fig.add_subplot(gs[2,0:7])
     ax1 = fig.add_subplot(gs[1,0:7], sharex=ax2)
     ax0 = fig.add_subplot(gs[0,0:7], sharex=ax1)
     plt.setp(ax0.get_xticklabels(), visible=False)
     plt.setp(ax1.get_xticklabels(), visible=False)
-    axLeg = fig.add_subplot(gs[0:2,7], sharex=ax1)
+    axs = [ax0, ax1, ax2]
+
+    # define axis for legend
+    axLeg = fig.add_subplot(gs[2,7])
     axLeg.axis("off")
-   
+
+    # channel counter
+    channelIndex = 0
 
     for ch in wvMeanChDict.keys():
         if(ch in chSkip): continue
-        print(ch)
-        #print(ch, len(WvMeanChDict[ch]), len(WvRMSChDict[ch]), len(EventID_V))
-        labelStr=""
-        if(ch%2==0):
-            labelStr="Ch"+str(ch)
-        if(useTimeStamp):
-            dateTimesV =  []
-            for ts in timeStampDict[ch]:
-                #print(ts, datetime.fromtimestamp(ts).strftime('%D:%H:%M'))
-                dateTimesV.append( datetime.fromtimestamp(ts) ) 
-            ax0.scatter(dateTimesV, chTempDict[ch], c=cDict[ch], label=labelStr, marker='o', s=3.)
-            ax1.scatter(dateTimesV, wvMeanChDict[ch], c=cDict[ch], label=labelStr, marker='o', s=3.)
-            ax2.scatter(dateTimesV, wvRMSChDict[ch], c=cDict[ch], label=labelStr, marker='o', s=3.)
-        else:
-            ax0.scatter(eventIDDict[ch], chTempDict[ch], c=cDict[ch], label=labelStr, marker='o', s=3.)
-            ax1.scatter(eventIDDict[ch], wvMeanChDict[ch], c=cDict[ch], label=labelStr, marker='o', s=3.)
-            ax2.scatter(eventIDDict[ch], wvRMSChDict[ch], c=cDict[ch], label=labelStr, marker='o', s=3.) 
-
-    ax1.set_ylabel("Pedestal mean [ADC]"); 
-    ax1.grid()
-
-    ax2.set_ylabel("Pedestal RMS [ADC]"); 
-    ax2.grid()
+        print("Using channel: ", ch)
     
-    ax0.grid()
-    ax0.set_ylabel(r"Temperature [$^\circ$C]"); 
+        # xaxis
+        xValues = eventIDDict[ch]
+        if(useTimeStamp):
+            xValues =  []
+            for ts in timeStampDict[ch]:
+                xValues.append( datetime.fromtimestamp(ts) ) 
+        
+        if("B" in plotScheme):
+            pedForPlot = nearest_neighbors_smoothing(wvMeanChDict[ch], fNN)
+            axs[ plotScheme["B"]].scatter(xValues, pedForPlot, color=cDict[ch], marker='o', s=fMarkerSize)
+        if("RMS" in plotScheme):
+            rmsForPlot = nearest_neighbors_smoothing(wvRMSChDict[ch], fNN)
+            axs[ plotScheme["RMS"]].scatter(xValues, rmsForPlot, color=cDict[ch], marker='o', s=fMarkerSize)
+        if("Temp" in plotScheme):
+            tempForPlot = nearest_neighbors_smoothing(chTempDict[ch], fNN)
+            axs[ plotScheme["Temp"]].scatter(xValues, tempForPlot, color=cDict[ch], marker='o', s=fMarkerSize)
+
+        channelIndex+=1
+
+
+    if("B" in plotScheme):
+        axs[plotScheme["B"]].set_ylabel("B [ADC]"); 
+        axs[plotScheme["B"]].grid()
+        # force matplotliob to not use scientific notation for the baseline
+        axs[plotScheme["B"]].yaxis.set_major_formatter(FormatStrFormatter('% 1i'))
+    if("RMS" in plotScheme):
+        axs[plotScheme["RMS"]].set_ylabel(r"$\sigma_{\rm B}$ [ADC]");     
+        axs[plotScheme["RMS"]].grid()
+    if("Temp" in plotScheme):
+        axs[plotScheme["Temp"]].set_ylabel(r"T [$^\circ$C]"); 
+        axs[plotScheme["Temp"]].grid() 
+        
 
     if(useTimeStamp):
-        fmt = mdates.DateFormatter('%D:%H:%M:%S')
-        ax2.xaxis.set_major_formatter(fmt)
-        ax2.set_xlabel("Time");
-        ax2.tick_params(axis='x', labelrotation = 45)
+        #fmt = mdates.DateFormatter('%D:%H:%M:%S')
+        fmt = mdates.DateFormatter('%b %d - %H:%M:%S')
+        axs[2].xaxis.set_major_formatter(fmt)
+        axs[2].tick_params(axis='x', labelrotation = 45) 
     else:
-        ax2.set_xlabel("event ID");
+        axs[2].set_xlabel("event ID");
+   
+    # draw the color map legend
+    colorMap = LinearSegmentedColormap.from_list("ChannelColorMap", list(cDict.values()), N=len(cDict.values()))
+    cbar = plt.colorbar(cm.ScalarMappable(cmap=colorMap), ax=axLeg, ticks=np.linspace(0, 1, 4), location="left")
+    cbar.ax.set_yticklabels(np.linspace( min(cDict.keys()), max(cDict.keys()), 4).astype(int).tolist())   
+    cbar.ax.set_ylabel("Ch", fontsize=10)
 
-    handles, labels = ax1.get_legend_handles_labels()
-    axLeg.legend(handles, labels)
-
-
-    fig.savefig("average_pedestal.pdf")
+   
+    outputFilepath = os.path.dirname(os.path.realpath(__file__))+"/../plots/baseline/"
+    # create directory if it doesn't exist
+    if not os.path.exists(outputFilepath):
+        os.makedirs(outputFilepath)
+    fig.savefig(outputFilepath+"average_pedestal.png", dpi=300)
 ##########################################
 
 
 
-# plot baseline statistics
 ##########################################
-def PlotStatisticsBaseline(eventID_V, wvMeanChDict, wvRMSChDict, chTempDict, chSkip=[]):
+# plot baseline mean and temperature
+def PlotBaselineTemperatureCorrelation(eventIDDict, timeStampDict, wvMeanChDict, chTempDict, nPlots=2, chSkip=[], useTimeStamp=True, nNeighboursSmooth=1):
 
-    fig2, axs = plt.subplots(2, 3)
-    fig2.subplots_adjust(left=0.075, bottom=0.06, right=0.99, top=0.95, wspace=0.3, hspace=0.45)
+    
+    # plotting style parameters
+    fMarkerSize = .3
+    params = {'figure.figsize': (13, 8),
+         'axes.labelsize': 'x-large',   
+         'axes.titlesize': 'x-large',      
+         'xtick.labelsize':'large',
+         'ytick.labelsize':'x-large'}
+   
+    # number of channels
+    nChannels = len(wvMeanChDict.keys())
 
-    df = pd.DataFrame(columns=['Ch','ChPed','ChPedErr','ChRMS','ChRMSErr', 'ChTemp', 'ChTempErr', 'ChLoc'])
-    dfString = pd.DataFrame(columns=["Ch", "Ped", "RMS", "T"])
+    fNN = nNeighboursSmooth
+    
+    # first figure: correlation baseline-temperature
+    plt.rcParams.update(params)
+    fig, AxGrad = plt.subplots(1, 1, figsize=(7, 7))
+    fig.subplots_adjust(left=0.15, bottom=0.1, right=0.94, top=0.92)
 
+    # second figure: baseline+temperature time series
+    fig2 = plt.figure("PMT V1730: Baseline and temperature")
+    fig2.subplots_adjust(left=0.1, bottom=0.175, right=0.91, top=0.91, wspace=0.6, hspace=0.75)
+    
+    # plot the time series only for a subsbample of channles
+    chGradStep = int(nChannels/nPlots)
+    gs2 = gridspec.GridSpec(nPlots, 1)
+    axGrad = []
+    for ix in range(nPlots):
+        axGrad.append( fig2.add_subplot(gs2[ix,0]) )
+    axGradCont=0
+
+    # list to store the baseline and temperature derivatives
+    tempGradV = []
+    pedGradV = []
+
+    # plot!
+    channelIndex = 0
     for ch in wvMeanChDict.keys():
         if(ch in chSkip): continue
-        ped_mean = np.mean(wvMeanChDict[ch])
-        ped_err = np.std(wvMeanChDict[ch])
-        rms_mean = np.mean(wvRMSChDict[ch])
-        rms_err = np.std(wvRMSChDict[ch])
+        print("Using channel: ", ch)
+
+        # get smoothed time series
+        tempForPlot = nearest_neighbors_smoothing(chTempDict[ch], fNN)
+        pedForPlot = nearest_neighbors_smoothing(wvMeanChDict[ch], fNN)
+        xValues = eventIDDict[ch]
+        
+        # xaxis
+        if(useTimeStamp):
+            xValues =  []
+            for ts in timeStampDict[ch]:
+                xValues.append( datetime.fromtimestamp(ts) ) 
+
+        # get derivatives
+        pedGradient = calculate_local_variation(pedForPlot, 2)
+        tempGradient = calculate_local_variation(tempForPlot, 2)
+        
+        # store values for the all-channels plot
+        pedGradV.extend(pedGradient)
+        tempGradV.extend(tempGradient)
+        
+        # plot time series for selected channel
+        if(ch%chGradStep==0):
+            axTwin = axGrad[axGradCont].twinx()
+            plot1 = axGrad[axGradCont].scatter(xValues, pedForPlot, color="navy", label="Pedestal", marker='o', s=fMarkerSize)
+            plot2 = axTwin.scatter(xValues, tempForPlot, color="maroon", label="Temperature", marker='^', s=fMarkerSize)
+            axGrad[axGradCont].set_ylabel("B [ADC]", color="navy")
+            axGrad[axGradCont].tick_params('y', colors="navy")
+            axGrad[axGradCont].ticklabel_format(useOffset=False, style='plain', axis='y')
+            axTwin.set_ylabel(r"T [$^\circ$ C]", color="maroon")
+            axTwin.tick_params('y', colors="maroon")
+            
+            if(useTimeStamp):
+                fmt = mdates.DateFormatter('%D:%H:%M:%S')
+                axGrad[axGradCont].xaxis.set_major_formatter(fmt)
+                axGrad[axGradCont].tick_params(axis='x', labelrotation = 45)
+            else:
+                axGrad[axGradCont].ax2.set_xlabel("event ID");
+    
+            labels = [plot1.get_label(), plot2.get_label()]
+            plt.legend([plot1, plot2], labels, title="Ch="+str(ch))
+
+            axGradCont+=1
+
+        channelIndex+=1
+
+    # plot profile for baseline-temperature correlation
+    gradX, gradY, gradYErr = GetBiasAndStdDev(tempGradV, pedGradV, 10, 10)
+    #AxGrad.scatter(tempGradV, pedGradV, s=fMarkerSize, c="grey", alpha=0.5)
+    AxGrad.errorbar(gradX, gradY, gradYErr, ls='none', marker="o", color="navy")
+    AxGrad.set_xlabel(r"$\Delta_{\rm T} \ [^\circ C]$", fontsize=20)
+    AxGrad.set_ylabel(r"$\Delta_{\rm B} \ [{\rm ADC}]$", fontsize=20)
+
+
+    # save plots
+    outputFilepath = os.path.dirname(os.path.realpath(__file__))+"/../plots/baselinetempcorrelation/"
+    # create directory if it doesn't exist
+    if not os.path.exists(outputFilepath):
+        os.makedirs(outputFilepath)
+    fig.savefig(outputFilepath+"average_pedestal_gradientAll.pdf")
+    fig2.savefig(outputFilepath+"average_pedestal_gradient.png", dpi=300)
+##########################################
+
+##########################################
+# plot baseline statistics
+def PlotStatisticsBaseline(wvMeanChDict, wvRMSChDict, chTempDict, chSkip=[]):
+
+    # data frame with channel information
+    df = pd.DataFrame(columns=['Ch', 'ChLoc',
+                               'ChPed','ChPedErr', 'ChPedMin', 'ChPedMax',
+                               'ChRMS','ChRMSErr', 'ChRMSMin', 'ChRMSMax',
+                               'ChTemp', 'ChTempErr', 'ChTempMin', 'ChTempMax'
+                               ])
+    # dataframe in string mode
+    dfString = pd.DataFrame(columns=["Ch", "Ped", "RMS", "T"])
+
+    cList=GetColorList(len(wvMeanChDict.keys()))
+    cDict = {}
+    for ch_ix, ch in enumerate(wvMeanChDict.keys()):
+        cDict[ch] = cList[ch_ix]
+
+    fBinSizeRMS = 0.001
+    fBinSizePed = 0.25
+    fBinSizeTemp = 1
+    
+
+    allChannelsPedestalMean = []
+    allChannelsPedestalRMS = []
+    allChannelsTemp = []
+    for ch in wvMeanChDict.keys():
+        if(ch in chSkip): continue
+        ch_loc = ch%2
+        allChannelsPedestalMean.extend(wvMeanChDict[ch])
+        allChannelsPedestalRMS.extend(wvRMSChDict[ch])
+        if(ch_loc==0):
+            allChannelsTemp.extend(chTempDict[ch])
+        # pedestal mean variables
+        #ped_mean = np.mean(wvMeanChDict[ch])
+        #ped_err = np.std(wvMeanChDict[ch])
+        ped_min = np.min(wvMeanChDict[ch])
+        ped_max = np.max(wvMeanChDict[ch])
+        ped_mean, ped_err = GetValuesFromGaussFit(wvMeanChDict[ch], np.arange(ped_min, ped_max, fBinSizePed))
+        
+        
+        
+        # pedestal RMS variables
+        #rms_mean = np.mean(wvRMSChDict[ch])
+        #rms_err = np.std(wvRMSChDict[ch])
+        rms_min = np.min(wvRMSChDict[ch])
+        rms_max = np.max(wvRMSChDict[ch])
+        rms_mean, rms_err = GetValuesFromGaussFit(wvRMSChDict[ch], np.arange(rms_min, rms_max, fBinSizeRMS))
+
+        # temperature variables
         t_mean = np.mean(chTempDict[ch])
         t_err = np.std(chTempDict[ch])
-        ch_loc = ch%2
-
-        df.loc[ch] = [ch, ped_mean, ped_err, rms_mean, rms_err, t_mean, t_err, ch_loc]
+        t_min = np.min(chTempDict[ch])
+        t_max = np.max(chTempDict[ch])
+        #t_mean, t_err = GetValuesFromGaussFit(wvRMSChDict[ch], np.arange(t_min, t_max, fBinSizeTemp))
+        
+        df.loc[ch] = [ch, ch_loc, 
+                      ped_mean, ped_err, ped_min, ped_max,
+                      rms_mean, rms_err, rms_min, rms_max,
+                      t_mean, t_err, t_min, t_max
+                      ]
 
         dfString.loc[ch] = [
             str(ch),
@@ -309,60 +425,270 @@ def PlotStatisticsBaseline(eventID_V, wvMeanChDict, wvRMSChDict, chTempDict, chS
             "{:.2f}".format(rms_mean)+r"$\pm$"+"{:.2f}".format(rms_err),
             "{:.2f}".format(t_mean)+r"$\pm$"+"{:.2f}".format(t_err)
         ]
+    
+    
+    fMarkerSize = 1.
+
+    fBinSizeRMS = 0.05
+    fBinSizePed = 2.5
+    fBinSizeTemp = 1
+    binsRMS=np.arange( df["ChRMSMin"].min(), df["ChRMSMax"].max(), fBinSizeRMS )
+    binsPed=np.arange( df["ChPedMin"].min(), df["ChPedMax"].max(), fBinSizePed  )
+    binsTemp=np.arange( df["ChTempMin"].min(), df["ChTempMin"].max(), fBinSizeTemp  )
+
+    # Color map used for legend
+    minCh = min(wvMeanChDict.keys())
+    maxCh = max(wvMeanChDict.keys())
+    myCmap = LinearSegmentedColormap.from_list("ChannelColorMap", list(cDict.values()), N=len(cDict.values()))
+
+    params = {'figure.figsize': (13, 8),
+        'axes.labelsize': 'x-large',   
+        'axes.titlesize': 'large',      
+        'xtick.labelsize':'large',
+        'ytick.labelsize':'large'}
+    
+    plt.rcParams.update(params)
 
 
-    print("Baseline stats data frame", df)
-    df.to_csv("baseline_stats.csv")
+    #fig1, axs1 = plt.subplots(2, 3, constrained_layout=False)
+    fig1 = plt.figure(constrained_layout=False)
+    gs1 = gridspec.GridSpec(2, 3) 
+    fig1.subplots_adjust(left=0.07, bottom=0.075, right=0.99, top=0.95, wspace=0.5, hspace=0.45)
+    axs1 = [[plt.subplot(gs1[0]), plt.subplot(gs1[1]),plt.subplot(gs1[2])], 
+            [plt.subplot(gs1[3]), plt.subplot(gs1[4]),plt.subplot(gs1[5])]]
 
     for ch in wvMeanChDict.keys():
         if(ch in chSkip): continue
-        labelStr="Ch"+str(ch)
-        axs[0][0].hist(wvMeanChDict[ch], label=labelStr, histtype="step")
-    axs[0][0].set_xlabel("Baseline mean"); axs[0][0].set_ylabel("# entries"); 
-    axs[0][0].grid()
-    axs[0][0].legend()
+        labelStr=""
+        if(ch%4==0):
+            labelStr="Ch"+str(ch)
+        axs1[0][0].hist(wvMeanChDict[ch], bins=binsPed, label=labelStr, histtype="step", edgecolor=cDict[ch], stacked=True)
+        axs1[1][0].hist(wvRMSChDict[ch], bins=binsRMS, label=labelStr, histtype="step", edgecolor=cDict[ch], stacked=True)
+    
+    axs1[0][0].set_xlabel("B [ADC]"); 
+    axs1[0][0].set_ylabel("# entries"); 
+    axs1[0][0].tick_params(axis='x', labelrotation = 15)
+    axs1[0][0].grid()    
+    divider = make_axes_locatable(axs1[0][0])
+    cax = divider.new_vertical(size = '2.5%', pad = 0.25)
+    fig1.add_axes(cax)
+    DrawChannelColorMap(cax, cDict)
+    """cbar = plt.colorbar(cm.ScalarMappable(cmap=myCmap), cax=cax, orientation = 'horizontal', ticks=np.linspace(0, 1, 4))
+    cbar.ax.set_xticklabels(np.linspace(minCh, maxCh-1, 4).astype(int).tolist(), fontsize=10)
+    cbar.ax.set_ylabel("Ch", fontsize=10)"""
 
-    binsRMS=np.arange(0, 5, 0.005)
+    axs1[1][0].set_xlabel(r"$\sigma_{\rm B}$ [ADC]"); axs1[1][0].set_ylabel("# entries"); 
+    axs1[1][0].grid()
+    axs1[1][0].set_yscale("log")
+    divider = make_axes_locatable(axs1[1][0])
+    cax = divider.new_vertical(size = '2.5%', pad = 0.25)
+    fig1.add_axes(cax)
+    DrawChannelColorMap(cax, cDict)
+
+    # baseline RMS as a function of the channel
+    axs1[1][1].errorbar(df.Ch, df.ChRMS, df.ChRMSErr, ls='none', marker="o", c=fColor1)
+    axs1[1][1].grid()
+    axs1[1][1].set_xlabel("Channel");
+    axs1[1][1].set_ylabel(r"$\overline{\sigma_{\rm B}}$ [ADC]"); 
+    #axs1[1][1].set_xticks(np.arange( min(df.Ch), max(df.Ch), fNLabelsForCh))
+
+    # baseline mean as a function of the channel
+    gs1A = gridspec.GridSpecFromSubplotSpec(2, 1, height_ratios=[2,1.2], subplot_spec=gs1[0, 1], hspace=0)
+    axs1A_1 = fig1.add_subplot(gs1A[0, 0]); 
+    axs1A_2 = fig1.add_subplot(gs1A[1, 0], sharex = axs1A_1);
+    plt.setp(axs1[0][1], visible=False) 
+    axs1A_1.errorbar(df.Ch, df.ChPed, df.ChPedErr, ls='none', marker="o", c=fColor1)
+    axs1A_2.plot(df.Ch, df.ChPedErr, ls='none', marker="o",  c=fColor2)
+    axs1A_1.grid(); axs1A_2.grid()
+    axs1A_2.set_xlabel("Channel");
+    axs1A_1.set_ylabel(r"$\overline{\rmB}$ [ADC]");
+    axs1A_2.set_ylabel(r"$\Delta\overline{\rm B}$ [ADC]");
+    stats=GetStatsStr(allChannelsPedestalMean, entries=False)
+    #axs1[0][1].set_xticks(np.arange( min(df.Ch), max(df.Ch), fNLabelsForCh))
+
+    # all channels histogram
+    axs1[0][2].hist(allChannelsPedestalMean, label="All ch", histtype="step", bins=binsPed, color=fColor1)
+    axs1[0][2].grid()
+    axs1[0][2].set_xlabel(r"B [ADC]");
+    axs1[0][2].set_ylabel("# entries");
+    axs1[0][2].tick_params(axis='x', labelrotation = 15)
+    stats=GetStatsStr(allChannelsPedestalMean, entries=False)
+    axs1[0][2].legend(title=stats)
+
+    axs1[1][2].hist(allChannelsPedestalRMS, label="All ch", histtype="step", bins=binsRMS,  color=fColor1)
+    axs1[1][2].grid()
+    axs1[1][2].set_yscale("log")
+    axs1[1][2].set_xlabel(r"$\sigma_{\rm B}$ [ADC]"); axs1[1][2].set_ylabel("# entries");
+    stats=GetStatsStr(allChannelsPedestalRMS, entries=False)
+    axs1[1][2].legend(title=stats)
+
+
+
+
+    fig2, axs2 = plt.subplots(2, 3)
+    fig2.subplots_adjust(left=0.07, bottom=0.075, right=0.99, top=0.95, wspace=0.5, hspace=0.45)
+    
+
+    # RMS min and max
+    axs2[0][0].plot(df.Ch, df.ChRMSMin, ls='none', marker="o", label="Min",  c=fColor1)
+    axs2[0][0].plot(df.Ch, df.ChRMSMax, ls='none', marker="o", label="Max",  c=fColor2)
+    axs2[0][0].grid()
+    axs2[0][0].set_xlabel(r"Channel");
+    axs2[0][0].set_ylabel(r"$\sigma_{\rm B}$ [ADC]");
+    #ax1.set_xticks(np.arange( min(df.Ch), max(df.Ch), fNLabelsForCh))
+    axs2[0][0].legend()
+
+    # RMS Spread
+    axs2[0][1].plot(df.ChRMSMax-df.ChRMSMin, ls='none', marker="o", label="Min",  c=fColor1)
+    axs2[0][1].grid()
+    axs2[0][1].set_xlabel(r"Channel");
+    axs2[0][1].set_ylabel(r"${\rm D}_{\sigma_{\rm B}}$ [ADC]");
+
+
+    # Baseline min and max
+    axs2[1][0].plot(df.Ch, df.ChPedMin, ls='none', marker="o", label="Min",  c=fColor1)
+    axs2[1][0].plot(df.Ch, df.ChPedMax, ls='none', marker="o", label="Max",  c=fColor2)
+    axs2[1][0].grid()
+    axs2[1][0].set_xlabel(r"Channel");
+    axs2[1][0].set_ylabel("B [ADC]");
+    #axs2[1][0].set_xticks(np.arange( min(df.Ch), max(df.Ch), fNLabelsForCh))
+    axs2[1][0].legend()
+
+    # Baseline spread
+    axs2[1][1].plot(df.ChPedMax-df.ChPedMin, ls='none', marker="o", label="Min",  c=fColor1)
+    axs2[1][1].grid()
+    axs2[1][1].set_xlabel(r"Channel");
+    axs2[1][1].set_ylabel(r"${\rm D}_{\rm B}$ [ADC]");
+
+
+
     for ch in wvMeanChDict.keys():
         if(ch in chSkip): continue
-        labelStr="Ch"+str(ch)
-        axs[1][0].hist(wvRMSChDict[ch], bins=binsRMS, label=labelStr, histtype="step")
-    axs[1][0].set_xlabel("Baseline RMS"); axs[1][0].set_ylabel("# entries"); 
-    axs[1][0].grid()
-    axs[1][0].legend()
+        labelStr=""
+        if(ch%4==0):
+            labelStr="Ch"+str(ch)
+        axs2[0, 2].scatter(wvMeanChDict[ch], wvRMSChDict[ch], label=labelStr, color=cDict[ch], s=fMarkerSize)
+    axs2[0, 2].set_xlabel("B [ADC]")
+    axs2[0][2].tick_params(axis='x', labelrotation = 15)
+    axs2[0, 2].set_ylabel(r"$\sigma_{\rm B}$ [ADC]")
+    divider = make_axes_locatable(axs2[0][2])
+    cax = divider.new_vertical(size = '2.5%', pad = 0.25)
+    fig2.add_axes(cax)
+    DrawChannelColorMap(cax, cDict)
+
+    # table    
+    """axs2[1, 2].table(cellText=dfString.values, colLabels=dfString.columns, loc='center')
+    axs2[1, 2].axis('off')"""
 
 
-    axs[1][1].errorbar(df.Ch, df.ChRMS, df.ChRMSErr, ls='none', marker="o")
-    axs[1][1].grid()
-    axs[1][1].set_xlabel("Channel"); axs[1][1].set_ylabel("Pedestal RMS [ADC]"); 
-    axs[1][1].set_xticks(np.arange( min(df.Ch), max(df.Ch), 2))
+    if(fPlotStackedHistograms):
+        histMeanV = []
+        histRMSV = []
+        colorV = []
+        labelV = [] 
+        for ch in wvMeanChDict.keys():
+            if(ch in chSkip): continue
+            labelStr=""
+            if(ch%4==0):
+                labelStr="Ch"+str(ch)
+            labelV.append(labelStr)
+            colorV.append(cDict[ch])
+            histMeanV.append(wvMeanChDict[ch])
+            histRMSV.append(wvRMSChDict[ch])
+        
+        """axs2[0][2].hist(histMeanV, label=labelV, color=colorV, stacked=True)
+        axs2[0][2].set_xlabel("B [ADC]"); axs[0][0].set_ylabel("# entries"); 
+        axs2[0][2].grid()
+        axs2[0][2].legend()"""
+        binsRMS=np.arange( df["ChRMSMin"].min(), 4, fBinSizeRMS )
+        axs2[1][2].hist(histRMSV, bins=binsRMS, label=labelV, color=colorV, stacked=True)
+        axs2[1][2].set_xlabel(r"$\sigma_{\rm B}$ [ADC]");
+        axs2[1][2].set_ylabel("# entries"); 
+        axs2[1][2].grid()
+        divider = make_axes_locatable(axs2[1][2])
+        cax = divider.new_vertical(size = '2.5%', pad = 0.25)
+        fig2.add_axes(cax)
+        cbar = plt.colorbar(cm.ScalarMappable(cmap=myCmap), cax=cax, orientation = 'horizontal', ticks=np.linspace(0, 1, 4))
+        cbar.ax.set_xticklabels(np.linspace(minCh, maxCh-1, 4).astype(int).tolist(), fontsize=10)
+        cbar.ax.set_ylabel("Ch", fontsize=10)
 
-    axs[0][1].errorbar(df.Ch, df.ChPed, df.ChPedErr, ls='none', marker="o")
-    axs[0][1].grid()
-    axs[0][1].set_xlabel("Channel"); axs[0][1].set_ylabel("Pedestal mean [ADC]");
-    axs[0][1].set_xticks(np.arange( min(df.Ch), max(df.Ch), 2)) 
 
 
-    axs[1][2].errorbar(df.ChTemp[df.ChLoc==0], df.ChRMS[df.ChLoc==0], df.ChRMSErr[df.ChLoc==0], ls='none', marker="o", label="Even")
-    axs[1][2].errorbar(df.ChTemp[df.ChLoc==1], df.ChRMS[df.ChLoc==1], df.ChRMSErr[df.ChLoc==1], ls='none', marker="o", label="Odd")
-    axs[1][2].grid()
-    axs[1][2].set_xlabel(r"Channel temperature [$^\circ$ C]");
-    axs[1][2].set_ylabel("Pedestal RMS [ADC]"); 
-    axs[1][2].legend()
 
-    axs[0][2].errorbar(df.ChTemp[df.ChLoc==0], df.ChPed[df.ChLoc==0], df.ChPedErr[df.ChLoc==0], ls='none', marker="o", label="Even")
-    axs[0][2].errorbar(df.ChTemp[df.ChLoc==1], df.ChPed[df.ChLoc==1], df.ChPedErr[df.ChLoc==1], ls='none', marker="o", label="Odd")
-    axs[0][2].grid()
-    axs[0][2].set_xlabel(r"Channel temperature [$^\circ$ C]");
-    axs[0][2].set_ylabel("Pedestal mean [ADC]");
-    axs[0][2].legend()
+    # temperature plots
+    fig3, axs3 = plt.subplots(2, 3)
+    fig3.subplots_adjust(left=0.07, bottom=0.075, right=0.99, top=0.95, wspace=0.5, hspace=0.45)
+    axs3[0][0].errorbar(df.Ch, df.ChTemp, df.ChTempErr, ls='none', marker="o", label="Average",  c=fColor1)
+    axs3[0][0].grid()
+    axs3[0][0].set_xlabel(r"Channel");
+    axs3[0][0].set_ylabel(r"$\overline{\rm T}$ [$^\circ$ C]");
+    #axs3[0][0].set_xticks(np.arange( min(df.Ch), max(df.Ch), fNLabelsForCh))
+    axs3[0][0].set_xticks(np.arange( minCh, maxCh, 16 ))
+    for index, xmaj in enumerate(axs3[0][0].xaxis.get_majorticklocs()):
+        axs3[0][0].axvline(x=xmaj, ls="--", linewidth = 2.0, color = 'dimgrey')
+    axs3[0][0].legend()
 
-    fig2.savefig("statistics_pedestal.pdf")
+    axs3[1][0].errorbar(df.Ch, df.ChTempMin, 1, ls='none', marker="o", label="Min",  c=fColor1)
+    axs3[1][0].errorbar(df.Ch, df.ChTempMax, 1, ls='none', marker="o", label="Max",  c=fColor2)
+    axs3[1][0].grid()
+    axs3[1][0].set_xlabel(r"Channel");
+    axs3[1][0].set_ylabel(r"T [$^\circ$ C]");
+    #axs3[1][0].set_xticks(np.arange( min(df.Ch), max(df.Ch), fNLabelsForCh))
+    axs3[1][0].set_xticks(np.arange( minCh, maxCh, 16 ))
+    for index, xmaj in enumerate(axs3[1][0].xaxis.get_majorticklocs()):
+        axs3[1][0].axvline(x=xmaj, ls="--", linewidth = 2.0, color = 'dimgrey')
+    axs3[1][0].legend()
+
+    # temperature as a function of the channel
+    axs3[0][1].hist(allChannelsTemp, label="All ch", histtype="step", bins=binsTemp,  color=fColor1)
+    axs3[0][1].grid()
+    axs3[0][1].set_xlabel(r"T [$^\circ$ C]");
+    axs3[0][1].set_ylabel("# entries");
+    stats=GetStatsStr(allChannelsTemp, entries=False)
+    axs3[0][1].legend(title=stats)
 
 
-    """fig3, axs = plt.subplots(1, 1)
-    axs.table(cellText=dfString.values, colLabels=dfString.columns, loc='center')
-    axs.axis('off')
-    fig3.savefig("statistics_pedestal_table.pdf")"""
+    # temperature dispersion
+    axs3[1][1].plot(df.ChTempMax-df.ChTempMin, ls='none', marker="o", label="Min",  c=fColor1)
+    axs3[1][1].grid()
+    axs3[1][1].set_xlabel(r"Channel")
+    axs3[1][1].set_ylabel(r"${\rm D}_{\rm T}$ [$^\circ$C]")
+    axs3[1][1].set_xticks(np.arange( minCh, maxCh, 16 ))
+    for index, xmaj in enumerate(axs3[1][1].xaxis.get_majorticklocs()):
+        axs3[1][1].axvline(x=xmaj, ls="--", linewidth = 2.0, color = 'dimgrey')
+    axs3[1][1].legend()
+
+
+    """axs3[0][2].errorbar(df.ChTemp[df.ChLoc==0], df.ChPed[df.ChLoc==0], df.ChPedErr[df.ChLoc==0], ls='none', marker="o", label="Even",  c=fColor1)
+    axs3[0][2].errorbar(df.ChTemp[df.ChLoc==1], df.ChPed[df.ChLoc==1], df.ChPedErr[df.ChLoc==1], ls='none', marker="o", label="Odd",  c=fColor1)
+    axs3[0][2].legend()"""
+    axs3[0][2].scatter(df.ChTemp, df.ChPed, marker="o", c=fColor1)
+    axs3[0][2].grid()
+    axs3[0][2].set_xlabel(r"$\overline{\rm T}$  [$^\circ$ C]")
+    axs3[0][2].set_ylabel(r"$\overline{\rm B}$ [ADC]")
+
+
+    """axs3[1][2].errorbar(df.ChTemp[df.ChLoc==0], df.ChRMS[df.ChLoc==0], df.ChRMSErr[df.ChLoc==0], ls='none', marker="o", label="Even",  c=fColor1)
+    axs3[1][2].errorbar(df.ChTemp[df.ChLoc==1], df.ChRMS[df.ChLoc==1], df.ChRMSErr[df.ChLoc==1], ls='none', marker="o", label="Odd",  c=fColor2)
+    axs3[1][2].legend()"""
+    axs3[1][2].scatter(df.ChTemp, df.ChRMS, marker="o",  c=fColor1)
+    axs3[1][2].grid()
+    axs3[1][2].set_xlabel(r"$\overline{\rm T}$  [$^\circ$ C]")
+    axs3[1][2].set_ylabel(r"$\overline{\sigma_{\rm B}}$ [ADC]")
+
+
+    outputFilepath = os.path.dirname(os.path.realpath(__file__))+"/../plots/stats/"
+    # Create the directory if it doesnt exist
+    if not os.path.exists(outputFilepath):
+        os.makedirs(outputFilepath)
+    os.makedirs(outputFilepath+"png/", exist_ok=True)
+    os.makedirs(outputFilepath+"pdf/", exist_ok=True)
+    
+    # save the data frame
+    df.to_csv(outputFilepath+"baseline_stats.csv")
+
+    SaveSubplots(fig1, axs1, outputFilepath, "statistics_baseline1" )
+    SaveSubplots(fig2, axs2, outputFilepath, "statistics_baseline2" )
+    SaveSubplots(fig3, axs3, outputFilepath, "statistics_temperature" )
 ##########################################
 
