@@ -37,11 +37,12 @@ fChSkip = parserargs.ChSkip
 
 # decide what to plot in which subplot
 # in this configuration: bottom plot->baseline mean,  middle plot->temperature, top plot-> baseline RMS
-fPlotScheme={"RMS":0, "Temp":1, "B":2}
-fPlotScheme={"Temp":1, "B":2}
+fPlotScheme={"RMS":2, "Temp":1, "B":0}
+#fPlotScheme={"Temp":1, "B":0}
 # plot only RMS
-fPlotScheme={"RMS":0}
-
+#fPlotScheme={"RMS":0}
+#fPlotScheme={"B":0}
+#fPlotScheme={"B":0, "RMS":1}
 
 ChTempDict = {}
 EventIDDict = {} 

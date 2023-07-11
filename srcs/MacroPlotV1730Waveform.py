@@ -70,7 +70,7 @@ def PlotBoardChannels(dat, eventID, fFFT=False):
         ax.legend(title="Ch="+str(ch))
     if(fFFT==True):
         fig.text(0.5, 0.03, 'Frequency [GHz]', ha='center', fontsize=14)
-        fig.text(0.01, 0.5, 'Power (AU)', va='center', rotation='vertical', fontsize=14)
+        fig.text(0.01, 0.5, 'Magnitude (AU)', va='center', rotation='vertical', fontsize=14)
     else:
         fig.text(0.5, 0.03, 'Time Tick [2 ns]', ha='center', fontsize=14)
         fig.text(0.01, 0.5, '[ADC]', va='center', rotation='vertical', fontsize=14)

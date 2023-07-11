@@ -58,12 +58,12 @@ def PlotPowerSpectrum(dat):
         ax.legend(title="Ch="+str(ch))
     
     fig.text(0.5, 0.03, 'Frequency [GHz]', ha='center', fontsize=14)
-    fig.text(0.01, 0.5, 'Power (AU)', va='center', rotation='vertical', fontsize=14)
+    fig.text(0.01, 0.5, 'Magnitude (AU)', va='center', rotation='vertical', fontsize=14)
     
     outputFilepath = os.path.dirname(os.path.realpath(__file__))+"/../plots/powerspectrum/"
     if not os.path.exists(outputFilepath):
         os.makedirs(outputFilepath)
-    fig.savefig(outputFilepath+"waveform.pdf")
+    fig.savefig(outputFilepath+"waveformspectrum.pdf")
     plt.show()
 ##########################################
 
@@ -95,7 +95,7 @@ for tree_entry in range( tree.GetEntries() ):
 
 
     for ix, wf in enumerate(fWvfmsVec):
-        wf = np.array(wf)
+        wf = np.array(wf)-np.mean(wf)
         wf_fft = np.abs( fft(wf) )
         ch=fChVec[ix]
         if(ch in numItersFFT):

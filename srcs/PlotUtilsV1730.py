@@ -24,7 +24,7 @@ fBaseline = 0
 fNChannels = 16
 fNOpDet = 320
 fWfSize = 5000
-fPlotStackedHistograms=False
+fPlotStackedHistograms=True
 
 # Define Gaussian function
 def gaussian(x, mu, sigma, A):
@@ -88,7 +88,19 @@ def DrawChannelColorMap(cax, colorDict):
                         orientation="horizontal")
     cbar.ax.set_xticklabels(np.linspace( min(colorDict.keys()), max(colorDict.keys()), 4).astype(int).tolist())
     cbar.ax.set_ylabel("Ch", fontsize=10)
-    
+
+
+def AddSlotNumbers(ax, minCh, maxCh):
+
+    fBoardNumberDict = {160:"S3",176:"S5",192:"S7",208:"S9",
+                    224:"S11",240:"S13",256:"S16",272:"S18"}
+    ax.set_xticks(np.arange( minCh, maxCh, 16 ))
+    for index, xmaj in enumerate(ax.xaxis.get_majorticklocs()):
+        if(index<len(ax.xaxis.get_majorticklocs())):
+            ax.axvline(x=xmaj, ls="--", linewidth = 2., color = 'dimgrey')
+            ax.text(xmaj, 1.05, fBoardNumberDict[xmaj], ha='center', va='center', transform=ax.get_xaxis_transform(), color= 'dimgrey', rotation="45")
+
+
 def SaveSubplots(fig, axs, outputFilepath, filename, expFrac=1.05):
     # save full figure
     fig.savefig(outputFilepath+"pdf/"+filename+".pdf")
@@ -152,7 +164,7 @@ class TimeXAxisHandle:
 ##########################################
 # plot baseline mean and RMS as a function of time
 # input is EventID_V, WvMeanChDict, WvRMSDict
-def PlotAverageBaseline(eventIDDict, timeStampDict, wvMeanChDict, wvRMSChDict, chTempDict, plotScheme={"RMS":0, "Temp":1, "B":2}, chSkip=[], useTimeStamp=True, nNeighboursSmooth=1):
+def PlotAverageBaseline(eventIDDict, timeStampDict, wvMeanChDict, wvRMSChDict, chTempDict, plotScheme={"RMS":2, "Temp":1, "B":0}, chSkip=[], useTimeStamp=True, nNeighboursSmooth=1):
 
 
     # Get channel-color map
@@ -176,12 +188,17 @@ def PlotAverageBaseline(eventIDDict, timeStampDict, wvMeanChDict, wvRMSChDict, c
     gs = gridspec.GridSpec(3, 8, hspace=0, wspace=1.5)
 
     # define the subplots
-    ax2 = fig.add_subplot(gs[2,0:7])
-    ax1 = fig.add_subplot(gs[1,0:7], sharex=ax2)
-    ax0 = fig.add_subplot(gs[0,0:7], sharex=ax1)
-    plt.setp(ax0.get_xticklabels(), visible=False)
-    plt.setp(ax1.get_xticklabels(), visible=False)
-    axs = [ax0, ax1, ax2]
+    ax0 = fig.add_subplot(gs[2,0:7])
+    axs = [ax0]
+
+    if(len(plotScheme)>=2):
+        ax1 = fig.add_subplot(gs[1,0:7], sharex=ax0)
+        plt.setp(ax1.get_xticklabels(), visible=False)
+        axs.append(ax1)
+    if(len(plotScheme)==3):
+        ax2 = fig.add_subplot(gs[0,0:7], sharex=ax1)
+        plt.setp(ax2.get_xticklabels(), visible=False)
+        axs.append(ax2)
 
     # define axis for legend
     axLeg = fig.add_subplot(gs[2,7])
@@ -230,10 +247,10 @@ def PlotAverageBaseline(eventIDDict, timeStampDict, wvMeanChDict, wvRMSChDict, c
     if(useTimeStamp):
         #fmt = mdates.DateFormatter('%D:%H:%M:%S')
         fmt = mdates.DateFormatter('%b %d - %H:%M:%S')
-        axs[2].xaxis.set_major_formatter(fmt)
-        axs[2].tick_params(axis='x', labelrotation = 45) 
+        axs[0].xaxis.set_major_formatter(fmt)
+        axs[0].tick_params(axis='x', labelrotation = 45) 
     else:
-        axs[2].set_xlabel("event ID");
+        axs[0].set_xlabel("event ID");
    
     # draw the color map legend
     colorMap = LinearSegmentedColormap.from_list("ChannelColorMap", list(cDict.values()), N=len(cDict.values()))
@@ -361,6 +378,7 @@ def PlotBaselineTemperatureCorrelation(eventIDDict, timeStampDict, wvMeanChDict,
 # plot baseline statistics
 def PlotStatisticsBaseline(wvMeanChDict, wvRMSChDict, chTempDict, chSkip=[]):
 
+    fUseGaussFit = True
     # data frame with channel information
     df = pd.DataFrame(columns=['Ch', 'ChLoc',
                                'ChPed','ChPedErr', 'ChPedMin', 'ChPedMax',
@@ -391,29 +409,35 @@ def PlotStatisticsBaseline(wvMeanChDict, wvRMSChDict, chTempDict, chSkip=[]):
         if(ch_loc==0):
             allChannelsTemp.extend(chTempDict[ch])
         # pedestal mean variables
-        #ped_mean = np.mean(wvMeanChDict[ch])
-        #ped_err = np.std(wvMeanChDict[ch])
+        ped_mean, ped_err = 0, 0
         ped_min = np.min(wvMeanChDict[ch])
         ped_max = np.max(wvMeanChDict[ch])
-        ped_mean, ped_err = GetValuesFromGaussFit(wvMeanChDict[ch], np.arange(ped_min, ped_max, fBinSizePed))
+        if(fUseGaussFit):
+            ped_mean, ped_err = GetValuesFromGaussFit(wvMeanChDict[ch], np.arange(ped_min, ped_max, fBinSizePed))
+        else:
+            ped_mean = np.mean(wvMeanChDict[ch])
+            ped_err = np.std(wvMeanChDict[ch])
+        
         
         
         
         # pedestal RMS variables
-        #rms_mean = np.mean(wvRMSChDict[ch])
-        #rms_err = np.std(wvRMSChDict[ch])
         rms_min = np.min(wvRMSChDict[ch])
         rms_max = np.max(wvRMSChDict[ch])
-        rms_mean, rms_err = GetValuesFromGaussFit(wvRMSChDict[ch], np.arange(rms_min, rms_max, fBinSizeRMS))
+        rms_mean, rms_err = 0, 0
+        if(fUseGaussFit):
+            rms_mean, rms_err = GetValuesFromGaussFit(wvRMSChDict[ch], np.arange(rms_min, rms_max, fBinSizeRMS))
+        else:
+            rms_mean = np.mean(wvRMSChDict[ch])
+            rms_err = np.std(wvRMSChDict[ch])
 
         # temperature variables
         t_mean = np.mean(chTempDict[ch])
         t_err = np.std(chTempDict[ch])
         t_min = np.min(chTempDict[ch])
         t_max = np.max(chTempDict[ch])
-        #t_mean, t_err = GetValuesFromGaussFit(wvRMSChDict[ch], np.arange(t_min, t_max, fBinSizeTemp))
         
-        df.loc[ch] = [ch, ch_loc, 
+        df.loc[int(ch)] = [int(ch), int(ch_loc), 
                       ped_mean, ped_err, ped_min, ped_max,
                       rms_mean, rms_err, rms_min, rms_max,
                       t_mean, t_err, t_min, t_max
@@ -519,7 +543,7 @@ def PlotStatisticsBaseline(wvMeanChDict, wvRMSChDict, chTempDict, chSkip=[]):
     axs1[1][2].grid()
     axs1[1][2].set_yscale("log")
     axs1[1][2].set_xlabel(r"$\sigma_{\rm B}$ [ADC]"); axs1[1][2].set_ylabel("# entries");
-    stats=GetStatsStr(allChannelsPedestalRMS, entries=False)
+    stats=GetStatsStr(allChannelsPedestalRMS, entries=False, prec="{:.2f}" )
     axs1[1][2].legend(title=stats)
 
 
@@ -608,9 +632,7 @@ def PlotStatisticsBaseline(wvMeanChDict, wvRMSChDict, chTempDict, chSkip=[]):
         divider = make_axes_locatable(axs2[1][2])
         cax = divider.new_vertical(size = '2.5%', pad = 0.25)
         fig2.add_axes(cax)
-        cbar = plt.colorbar(cm.ScalarMappable(cmap=myCmap), cax=cax, orientation = 'horizontal', ticks=np.linspace(0, 1, 4))
-        cbar.ax.set_xticklabels(np.linspace(minCh, maxCh-1, 4).astype(int).tolist(), fontsize=10)
-        cbar.ax.set_ylabel("Ch", fontsize=10)
+        DrawChannelColorMap(cax, cDict)
 
 
 
@@ -623,9 +645,7 @@ def PlotStatisticsBaseline(wvMeanChDict, wvRMSChDict, chTempDict, chSkip=[]):
     axs3[0][0].set_xlabel(r"Channel");
     axs3[0][0].set_ylabel(r"$\overline{\rm T}$ [$^\circ$ C]");
     #axs3[0][0].set_xticks(np.arange( min(df.Ch), max(df.Ch), fNLabelsForCh))
-    axs3[0][0].set_xticks(np.arange( minCh, maxCh, 16 ))
-    for index, xmaj in enumerate(axs3[0][0].xaxis.get_majorticklocs()):
-        axs3[0][0].axvline(x=xmaj, ls="--", linewidth = 2.0, color = 'dimgrey')
+    AddSlotNumbers(axs3[0,0], minCh, maxCh)
     axs3[0][0].legend()
 
     axs3[1][0].errorbar(df.Ch, df.ChTempMin, 1, ls='none', marker="o", label="Min",  c=fColor1)
@@ -634,9 +654,7 @@ def PlotStatisticsBaseline(wvMeanChDict, wvRMSChDict, chTempDict, chSkip=[]):
     axs3[1][0].set_xlabel(r"Channel");
     axs3[1][0].set_ylabel(r"T [$^\circ$ C]");
     #axs3[1][0].set_xticks(np.arange( min(df.Ch), max(df.Ch), fNLabelsForCh))
-    axs3[1][0].set_xticks(np.arange( minCh, maxCh, 16 ))
-    for index, xmaj in enumerate(axs3[1][0].xaxis.get_majorticklocs()):
-        axs3[1][0].axvline(x=xmaj, ls="--", linewidth = 2.0, color = 'dimgrey')
+    AddSlotNumbers(axs3[1,0], minCh, maxCh)
     axs3[1][0].legend()
 
     # temperature as a function of the channel
@@ -654,8 +672,7 @@ def PlotStatisticsBaseline(wvMeanChDict, wvRMSChDict, chTempDict, chSkip=[]):
     axs3[1][1].set_xlabel(r"Channel")
     axs3[1][1].set_ylabel(r"${\rm D}_{\rm T}$ [$^\circ$C]")
     axs3[1][1].set_xticks(np.arange( minCh, maxCh, 16 ))
-    for index, xmaj in enumerate(axs3[1][1].xaxis.get_majorticklocs()):
-        axs3[1][1].axvline(x=xmaj, ls="--", linewidth = 2.0, color = 'dimgrey')
+    AddSlotNumbers(axs3[1,1], minCh, maxCh)
     axs3[1][1].legend()
 
 

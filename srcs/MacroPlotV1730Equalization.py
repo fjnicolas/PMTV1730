@@ -1,17 +1,8 @@
 import numpy as np
 from matplotlib import pyplot as plt
-plt.rcParams['figure.figsize'] = [12, 7]
 import argparse
 import pandas as pd
 from PlotUtilsV1730 import *
-
-params = {'legend.fontsize': 'small',
-          'figure.figsize': (12, 8),
-         'axes.labelsize': 'medium',
-         'axes.titlesize':'medium',
-         'xtick.labelsize':'medium',
-         'ytick.labelsize':'medium'}
-plt.rcParams.update(params)
 
 
 parser = argparse.ArgumentParser()
