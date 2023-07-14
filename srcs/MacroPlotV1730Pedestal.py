@@ -39,6 +39,7 @@ fChSkip = parserargs.ChSkip
 # in this configuration: bottom plot->baseline mean,  middle plot->temperature, top plot-> baseline RMS
 fPlotScheme={"RMS":2, "Temp":1, "B":0}
 #fPlotScheme={"Temp":1, "B":0}
+fPlotScheme={"Temp":0}
 # plot only RMS
 #fPlotScheme={"RMS":0}
 #fPlotScheme={"B":0}
