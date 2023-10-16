@@ -136,7 +136,9 @@ def GetColorList(N):
     NUM_STYLES = len(LINE_STYLES)
 
     ColorList = []
-    cm = plt.get_cmap('gist_rainbow')
+    #cm = plt.get_cmap('gist_rainbow')
+    #cm = plt.get_cmap('viridis')
+    cm = plt.get_cmap('nipy_spectral')
     for i in range(NUM_COLORS):
         ColorList.append(cm(i//NUM_STYLES*float(NUM_STYLES)/NUM_COLORS))
         #lines[0].set_linestyle(LINE_STYLES[i%NUM_STYLES])
@@ -185,7 +187,7 @@ def PlotAverageBaseline(eventIDDict, timeStampDict, wvMeanChDict, wvRMSChDict, c
     plt.rcParams.update(params)
     fig = plt.figure("PMT V1730")
     fig.subplots_adjust(left=0.1, bottom=0.175, right=0.97, top=0.95, wspace=0.3, hspace=0.45)
-    gs = gridspec.GridSpec(3, 8, hspace=0, wspace=1.5)
+    gs = gridspec.GridSpec(3, 8, hspace=0.1, wspace=1.5)
 
     # define the subplots
     ax0 = fig.add_subplot(gs[2,0:7])
@@ -376,9 +378,9 @@ def PlotBaselineTemperatureCorrelation(eventIDDict, timeStampDict, wvMeanChDict,
 
 ##########################################
 # plot baseline statistics
-def PlotStatisticsBaseline(wvMeanChDict, wvRMSChDict, chTempDict, chSkip=[]):
+def PlotStatisticsBaseline(wvMeanChDict, wvRMSChDict, chTempDict, chSkip=[], makeErrorsWithFit=False):
 
-    fUseGaussFit = True
+    fUseGaussFit = makeErrorsWithFit
     # data frame with channel information
     df = pd.DataFrame(columns=['Ch', 'ChLoc',
                                'ChPed','ChPedErr', 'ChPedMin', 'ChPedMax',
@@ -412,7 +414,7 @@ def PlotStatisticsBaseline(wvMeanChDict, wvRMSChDict, chTempDict, chSkip=[]):
         ped_mean, ped_err = 0, 0
         ped_min = np.min(wvMeanChDict[ch])
         ped_max = np.max(wvMeanChDict[ch])
-        if(fUseGaussFit):
+        if(fUseGaussFit==1):
             ped_mean, ped_err = GetValuesFromGaussFit(wvMeanChDict[ch], np.arange(ped_min, ped_max, fBinSizePed))
         else:
             ped_mean = np.mean(wvMeanChDict[ch])
@@ -425,7 +427,7 @@ def PlotStatisticsBaseline(wvMeanChDict, wvRMSChDict, chTempDict, chSkip=[]):
         rms_min = np.min(wvRMSChDict[ch])
         rms_max = np.max(wvRMSChDict[ch])
         rms_mean, rms_err = 0, 0
-        if(fUseGaussFit):
+        if(fUseGaussFit==1):
             rms_mean, rms_err = GetValuesFromGaussFit(wvRMSChDict[ch], np.arange(rms_min, rms_max, fBinSizeRMS))
         else:
             rms_mean = np.mean(wvRMSChDict[ch])

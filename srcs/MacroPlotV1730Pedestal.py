@@ -18,6 +18,7 @@ parser.add_argument("-pedOnly", "--PedOnly", type=int, default=0)
 parser.add_argument("-stats", "--MakeStats", type=int, default=1)
 parser.add_argument("-time", "--PlotTime", type=int, default=1)
 parser.add_argument("-nn", "--NNeighboursSmooth", type=int, default=5)
+parser.add_argument("-statsWithFit", "--MakeStatsWithFit", type=int, default=0)
 parserargs = parser.parse_args()
 
 
@@ -38,8 +39,8 @@ fChSkip = parserargs.ChSkip
 # decide what to plot in which subplot
 # in this configuration: bottom plot->baseline mean,  middle plot->temperature, top plot-> baseline RMS
 fPlotScheme={"RMS":2, "Temp":1, "B":0}
-#fPlotScheme={"Temp":1, "B":0}
-fPlotScheme={"Temp":0}
+fPlotScheme={"Temp":1, "B":0}
+#fPlotScheme={"Temp":0}
 # plot only RMS
 #fPlotScheme={"RMS":0}
 #fPlotScheme={"B":0}
@@ -68,6 +69,6 @@ print("Run numbers", RunSetV)
 if(parserargs.PlotTime==1):
     PlotAverageBaseline(EventIDDict, TimeStampDict, WvMeanChDict, WvRMSChDict, ChTempDict, fPlotScheme, parserargs.ChSkip, parserargs.UseTimeStamp, parserargs.NNeighboursSmooth)
 if(parserargs.MakeStats==1):
-    PlotStatisticsBaseline(WvMeanChDict, WvRMSChDict, ChTempDict)
+    PlotStatisticsBaseline(WvMeanChDict, WvRMSChDict, ChTempDict, makeErrorsWithFit=parserargs.MakeStatsWithFit)
 
 plt.show()

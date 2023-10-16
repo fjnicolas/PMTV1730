@@ -67,15 +67,12 @@ https://github.com/SBNSoftware/SBNSoftware.github.io/blob/master/sbn_online_wiki
 - To change pedestal (DC offsets): change pedestal, not basline parameters
 
 ## Running analyzer instructions
+Once you have take the data, you'll need to analyze it! A dedicated `art::Analyzer` that reads the V1730 fragments and stores the data in a TTree can fe found in this feature branch: [feature/fnicolas_pmtv1730ana](https://github.com/SBNSoftware/sbndaq-artdaq/tree/feature/fnicolas_pmtv1730ana). In particular we will be running the analyzer: [sbndaq-artdaq/ArtModules/SBND/SBNDPMTV1730Ana_module.cc](https://github.com/SBNSoftware/sbndaq-artdaq/blob/feature/fnicolas_pmtv1730ana/sbndaq-artdaq/ArtModules/SBND/SBNDPMTV1730Ana_module.cc)
+Two fhicls that run the analyzer:
+- Saves waveforms into TTree: [ArtModules/SBND/run_anaPMTV1730_wWf.fcl](https://github.com/SBNSoftware/sbndaq-artdaq/blob/feature/fnicolas_pmtv1730ana/sbndaq-artdaq/ArtModules/SBND/run_anaPMTV1730_wWf.fcl)
+- Saves waveform/channel statistics into TTree: [ArtModules/SBND/run_anaPMTV1730.fcl](https://github.com/SBNSoftware/sbndaq-artdaq/blob/feature/fnicolas_pmtv1730ana/sbndaq-artdaq/ArtModules/SBND/run_anaPMTV1730.fcl)
 
-* Purpose: get readable waveforms
-* For ana we setup this environment: source ana_launchdaq.sh
-* We run this [fhicl-file](https://github.com/SBNSoftware/sbndaq-artdaq/blob/develop/sbndaq-artdaq/ArtModules/Common/dump_CAENV1730.fcl)
-* Correr en /sbnd/fnicolas (“HOME” area)
-
-Notes on long data takings:
-Cannot disconnect DAQInterface. Recommend running in tmux or screen so it's running in the background. If we close the monitor window, there's no way to get it back (not critical).
- There's an option in the EventBuilder to prescale the number of recorded events.
+You can run just as `lar -c run_anaPMTV1730.fcl -s inputDAQfile.root`. You can analyze the TTree with ROOT/python plotting macros. You will need a local installation of the `sbndaq-artdaq` repository.
 
 
 ## Running CAEN wavedump
