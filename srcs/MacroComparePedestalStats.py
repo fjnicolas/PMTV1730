@@ -39,7 +39,7 @@ fMS = ['o', 's', 'D', '^', 'v', '>', '<', 'p', '*', 'h', 'H', 'x']
 fLS = ['-', '--', '-.', ':'] * len(fMS)
 fColor1 = "midnightblue"
 fColor2 = "maroon"
-fCList = ["midnightblue", "maroon", "forestgreen", "slategrey", "darkmagenta",]
+fCList = ["midnightblue", "maroon", "black", "forestgreen", "darkmagenta",]
 fCapSize = 5.
 fMarkerSize = 5.
 fAlpha=0.8
@@ -50,7 +50,7 @@ fBoardNumberDict = {160:"S3",176:"S5",192:"S7",208:"S9",
 
 fChList = list(range(160, 290))
 
-fOption=5
+fOption=1
 fFiles = parserargs.Filepath
 fLabels = parserargs.Label
 if(fOption==1):   
@@ -186,15 +186,15 @@ AddSlotNumbers(axs2[1,0], minCh, maxCh)
 ##---## RMS
 axs3[0][0].legend()
 axs3[0][0].set_ylabel("# entries");
-axs3[0][0].set_xlabel( r"$\overline{\ \sigma}_{\rm B}$" )
+axs3[0][0].set_xlabel( r"$\overline{\ \sigma}_{\rm B}$ [ADC]" )
 ##---## Baseline
 axs3[0][1].legend()
 axs3[0][1].set_ylabel("# entries"); 
-axs3[0][1].set_xlabel(r"$\overline{\rm B}$")
+axs3[0][1].set_xlabel(r"$\overline{\rm B}$ [ADC]")
 ##---## Temperature
 axs3[1][0].legend()
 axs3[1][0].set_ylabel("# entries"); 
-axs3[1][0].set_xlabel(r"$\overline{\rm T}$")
+axs3[1][0].set_xlabel(r"$\overline{\rm T} \ [^\circ{\rm C}]$")
         
 
 
